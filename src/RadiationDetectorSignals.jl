@@ -4,6 +4,22 @@ __precompile__(true)
 
 module RadiationDetectorSignals
 
-# package code goes here
+using ArraysOfArrays
+using ElasticArrays
+using FillArrays
+using RecipesBase
+using StaticArrays
+using Tables
+using TypedTables
+using UnsafeArrays
+using Unitful
+
+import StatsBase
+
+include("numeric_types.jl")
+include("array_types.jl")
+include("detector_hits.jl")
+include("detector_waveforms.jl")
+include("plots_recipes.jl")
 
 end # module

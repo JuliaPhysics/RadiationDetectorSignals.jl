@@ -1,0 +1,20 @@
+name = "RadiationDetectorSignals"
+uuid = "bf2c0563-65cf-5db2-a620-ceb7de82658c"
+
+[deps]
+ArraysOfArrays = "65a8f2f4-9b39-5baf-92e2-a9cc46fdf018"
+ElasticArrays = "fdbdab4c-e67f-52f5-8c3f-e7b388dad3d4"
+FillArrays = "1a297f60-69ca-5386-bcde-b61e274b549b"
+RecipesBase = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
+Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
+TypedTables = "9d95f2ec-7b3d-5a63-8d20-e2491e220bb9"
+UnsafeArrays = "c4a57d5a-5b31-53a6-b365-19f8c011fbd6"
+Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
