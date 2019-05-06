@@ -1,8 +1,11 @@
 # This file is a part of LegendDataTypes.jl, licensed under the MIT License (MIT).
 
 
-_unitful_axis_label(axis_label::AbstractString, units::Unitful.Unitlike) =
-    units == NoUnits ? axis_label : "$axis_label [$units]"
+function _unitful_axis_label(axis_label::AbstractString, units::Unitful.Unitlike)
+    u_str = units == NoUnits ? "" : "$units"
+    u_str2 = replace(u_str, "μ" => "u")
+    isempty(u_str2) ? axis_label : "$axis_label [$u_str2]"
+end
 
 
 function prep_for_plotting(X::AbstractVector{<:RealQuantity}, axis_label::AbstractString)
