@@ -98,7 +98,7 @@ end
 
 @recipe function f(wf::RDWaveform)
     X, X_label = prep_for_plotting(wf.t, "t")
-    Y, Y_label = prep_for_plotting(wf.v, "v")
+    Y, Y_label = prep_for_plotting(wf.v, "sample value")
 
     seriestype = get(plotattributes, :seriestype, :line)
 
