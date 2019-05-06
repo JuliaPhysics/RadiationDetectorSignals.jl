@@ -6,35 +6,32 @@
 
 
 const WaveformSamples = AbstractVector{<:RealQuantity}
+const TimeAxis = AbstractVector{<:RealQuantity}
 
 
 """
-    ChannelWaveform
+    RDWaveform
+
+Represents a radiation detector signal waveform.
 
 Fields:
 
-* `evtno::Integer`: channel-event number
-* `chno::Integer`: channel number
-* `samplerate::RealQuantity`: sample rate
-* ``
+* `v`: sample values
+* `t`: time axis, typically a range
 """
-const ChannelWaveform = NamedTuple{
-    (:evtno, :chno, :delta_t, :offset, :samples),
-    <:Tuple{Integer, Integer, RealQuantity, RealQuantity, WaveformSamples}
-}
-export ChannelWaveform
+struct RDWaveform{SV<:WaveformSamples,TV<:TimeAxis}
+    v::SV
+    t::TV
+end
+
+export RDWaveform
 
 
-const ChannelWaveforms = TypedTables.Table{<:ChannelWaveform}
-export ChannelWaveforms
 
-
-timeaxis(waveform::ChannelWaveform) = waveform.delta_t .* (waveform.offset - 1 .+ axes(waveform.samples, 1))
-export timeaxis
 
 
 #=
-function StatsBase.Histogram(waveforms::ChannelWaveforms)
+function StatsBase.Histogram(waveforms::AbstractVector{<:RDWaveforms})
     samples = ...
 
     xedge = axes(samples, 1)

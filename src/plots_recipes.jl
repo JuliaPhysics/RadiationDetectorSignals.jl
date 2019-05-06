@@ -93,16 +93,15 @@ end
 end
 
 
-@recipe function f(chwf::ChannelWaveform)
-    X, X_label = prep_for_plotting(timeaxis(chwf), "t")
-    Y, Y_label = prep_for_plotting(chwf.samples, "Amplitude")
+@recipe function f(wf::RDWaveform)
+    X, X_label = prep_for_plotting(wf.t, "t")
+    Y, Y_label = prep_for_plotting(wf.v, "v")
 
     seriestype = get(plotattributes, :seriestype, :line)
 
     if seriestype in (:line, :scatter)
         @series begin
             seriestype := seriestype
-            color --> chwf.chno
             xlabel --> X_label
             ylabel --> Y_label
             (X, Y)
