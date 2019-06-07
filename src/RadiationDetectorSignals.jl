@@ -8,8 +8,10 @@ using ArraysOfArrays
 using ElasticArrays
 using EncodedArrays
 using FillArrays
+using IntervalSets
 using RecipesBase
 using StaticArrays
+using StructArrays
 using Tables
 using TypedTables
 using UnsafeArrays
