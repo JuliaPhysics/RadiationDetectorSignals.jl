@@ -5,8 +5,8 @@
 # here are quite specific, so the risk of a conflict is low).
 
 
-const WaveformSamples = AbstractVector{<:RealQuantity}
-const TimeAxis = AbstractVector{<:RealQuantity}
+const WaveformSamples{T<:RealQuantity} = AbstractVector{T}
+const TimeAxis{T<:RealQuantity} = AbstractVector{T}
 
 
 """
@@ -19,7 +19,7 @@ Fields:
 * `v`: sample values
 * `t`: time axis, typically a range
 """
-struct RDWaveform{SV<:WaveformSamples,TV<:TimeAxis}
+struct RDWaveform{S<:RealQuantity,T<:RealQuantity,SV<:WaveformSamples{S},TV<:TimeAxis{T}}
     v::SV
     t::TV
 end
