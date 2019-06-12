@@ -29,8 +29,12 @@ end
 
 export RDWaveform
 
-# ToDo: function for waveform duration. Use IntervalSets.duration?
 
+RDWaveform{T,U,TV,UV}(wf::RDWaveform) where {T,U,TV,UV} = RDWaveform{T,U,TV,UV}(wf.time, wf.value)
+Base.convert(::Type{RDWaveform{T,U,TV,UV}}, wf::RDWaveform) where {T,U,TV,UV} = RDWaveform{T,U,TV,UV}(wf)
+
+
+# ToDo: function for waveform duration. Use IntervalSets.duration?
 
 
 const ArrayOfRDWaveforms{
