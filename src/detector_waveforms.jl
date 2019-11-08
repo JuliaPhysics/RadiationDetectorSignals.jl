@@ -64,6 +64,16 @@ function StructArray{RDWaveform}(
 end
 
 
+StructArray{RDWaveform}(waveforms::AbstractVector{<:RDWaveform}) =
+    StructArray{RDWaveform}((map(w -> w.time, waveforms), VectorOfVectors(map(w -> w.value, waveforms))))
+
+Base.convert(::Type{ArrayOfRDWaveforms}, waveforms::AbstractVector{<:RDWaveform}) = StructArray{RDWaveform}(waveforms)
+Base.convert(::Type{ArrayOfRDWaveforms}, waveforms::StructArray{<:RDWaveform}) = waveforms
+
+Base.convert(::Type{StructArray{RDWaveform}}, waveforms::AbstractVector{<:RDWaveform}) = StructArray{RDWaveform}(waveforms)
+Base.convert(::Type{StructArray{RDWaveform}}, waveforms::StructArray{<:RDWaveform}) = waveforms
+
+
 # Specialize getindex to properly support ArraysOfArrays, preventing
 # conversion to exact element type:
 @inline Base.getindex(A::StructArray{<:RDWaveform}, I::Int...) =
