@@ -1,4 +1,4 @@
-# This file is a part of LegendDataTypes.jl, licensed under the MIT License (MIT).
+# This file is a part of RadiationDetectorSignals.jl, licensed under the MIT License (MIT).
 
 # TODO: Replace by true custom types to avoid type piracy (e.g. with plotting
 # recipes) on NamedTuple and TypedTables.Table (even though the types aliased

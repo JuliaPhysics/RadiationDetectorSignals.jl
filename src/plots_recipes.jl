@@ -1,4 +1,4 @@
-# This file is a part of LegendDataTypes.jl, licensed under the MIT License (MIT).
+# This file is a part of RadiationDetectorSignals.jl, licensed under the MIT License (MIT).
 
 
 function _unitful_axis_label(axis_label::AbstractString, units::Unitful.Unitlike)
