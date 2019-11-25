@@ -5,6 +5,14 @@
 # here are quite specific, so the risk of a conflict is low).
 
 
+"""
+    DetectorHit = NamedTuple{(:evtno, :detno, :thit, :edep, :pos), ...)
+
+Representation of an localized energy deposition in a detector.
+
+Use [`DetectorHitEvents`](@ref) for arrays of `DetectorHit` that have a
+compact memory layout.
+"""
 const DetectorHit = NamedTuple{
     (:evtno, :detno, :thit, :edep, :pos),
     <:Tuple{Integer, Integer, RealQuantity, RealQuantity, AbstractVector{<:RealQuantity}}
@@ -18,6 +26,11 @@ DetectorHits(x::NamedTuple{(:evtno, :detno, :thit, :edep, :pos)}) = TypedTables.
 DetectorHits(x::Any) = TypedTables.Table(detno = x.detno, thit = x.thit, edep = x.edep, pos = x.pos)::DetectorHits
 
 
+"""
+    DetectorHitEvents = TypedTables.Table{...}
+
+A `TypedTables.Table` of [`DetectorHit`](@ref) events.
+"""
 const DetectorHitEvents = TypedTables.Table{
     <:NamedTuple{
         (:evtno, :detno, :thit, :edep, :pos),

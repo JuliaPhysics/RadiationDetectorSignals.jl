@@ -18,6 +18,9 @@ Fields:
 
 * `time`: time axis, typically a range
 * `value`: sample values
+
+Use [`ArrayOfRDWaveforms`](@ref) for arrays of `RDWaveform` that have a
+compact memory layout.
 """
 struct RDWaveform{
     T<:RealQuantity,U<:RealQuantity,
@@ -37,6 +40,14 @@ Base.convert(::Type{RDWaveform{T,U,TV,UV}}, wf::RDWaveform) where {T,U,TV,UV} = 
 # ToDo: function for waveform duration. Use IntervalSets.duration?
 
 
+"""
+    ArrayOfRDWaveforms = StructArray{<:RDWaveform, ...)
+
+A `StructsArrays.StructArray` of [`RDWaveform`](@ref).
+
+By default, uses `ArraysOfArrays.VectorOfVectors` for contiguous memory
+layout.
+"""
 const ArrayOfRDWaveforms{
     T<:RealQuantity,U<:RealQuantity,N,
     VVT <: AbstractVector{<:AbstractVector{T}}, VVU <: AbstractVector{<:AbstractVector{U}}

@@ -6,6 +6,15 @@
 [![Appveyor Build Status](https://ci.appveyor.com/api/projects/status/github/JuliaPhysics/RadiationDetectorSignals.jl?branch=master&svg=true)](https://ci.appveyor.com/project/JuliaPhysics/RadiationDetectorSignals-jl)
 [![Codecov](https://codecov.io/gh/JuliaPhysics/RadiationDetectorSignals.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/JuliaPhysics/RadiationDetectorSignals.jl)
 
+A Julia package for data types to represent radiation detector signals,
+especially sparse hit data and digitized waveforms.
+
+RadiationDetectorSignals.jl is integrated with
+[StructArrays.jl](https://github.com/JuliaArrays/StructArrays.jl) for
+contiguous memory layout of data. The package is also compatible with
+[EncodedArrays.jl](https://github.com/oschulz/EncodedArrays.jl) to handle
+compressed data.
+
 
 ## Documentation
 
