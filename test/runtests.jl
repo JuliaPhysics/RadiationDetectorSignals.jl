@@ -3,6 +3,7 @@
 import Test
 Test.@testset "Package RadiationDetectorSignals" begin
 
-# test code goes here
+include("test_detector_hits.jl")
+include("test_detector_waveforms.jl")
 
 end # testset
