@@ -29,7 +29,7 @@ StatsBase = "0.32"
 StructArrays = "0.4"
 Tables = "0.2"
 TypedTables = "1.2"
-Unitful = "0.17"
+Unitful = "0.17,0.18"
 UnsafeArrays = "1"
 julia = "1"
 
