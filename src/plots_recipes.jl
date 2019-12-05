@@ -130,3 +130,16 @@ end
         error("seriestype $seriestype not supported")
     end
 end
+
+@recipe function f(wfs::ArrayOfRDWaveforms)
+    for wf in wfs
+        @series begin
+            wf
+        end
+    end
+end
+@recipe function f(wfs::Array{<:RDWaveform})
+    @series begin
+        ArrayOfRDWaveforms(wfs)
+    end
+end
