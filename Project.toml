@@ -18,7 +18,7 @@ Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 UnsafeArrays = "c4a57d5a-5b31-53a6-b365-19f8c011fbd6"
 
 [compat]
-ArraysOfArrays = "0.4"
+ArraysOfArrays = "0.4, 0.5"
 ElasticArrays = "0.2, 0.3, 0.4, 1"
 EncodedArrays = "0.2"
 FillArrays = "0.7, 0.8"
