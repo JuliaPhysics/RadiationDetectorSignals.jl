@@ -41,8 +41,8 @@ end
         nbins --> 500
 
         #title := "Detector Hits, XY"
-        xlabel := "x$length_ustring"
-        ylabel := "y$length_ustring"
+        xguide := "x$length_ustring"
+        yguide := "y$length_ustring"
 
         (pos_x, pos_y)
     end
@@ -56,8 +56,8 @@ end
         nbins --> 500
 
         #title := "Detector Hits, ZY"
-        xlabel := "z$length_ustring"
-        ylabel := "y$length_ustring"
+        xguide := "z$length_ustring"
+        yguide := "y$length_ustring"
 
         (pos_z, pos_y)
     end
@@ -71,8 +71,8 @@ end
         nbins --> 500
 
         # title := "Detector Hits, XZ"
-        xlabel := "x$length_ustring"
-        ylabel := "z$length_ustring"
+        xguide := "x$length_ustring"
+        yguide := "z$length_ustring"
 
         (pos_x, pos_z)
     end
@@ -88,8 +88,8 @@ end
         legend := false
 
         # title:="Energy Spectrum"
-        xlabel := "E $(ustring(edep_unit))"
-        ylabel := edep_unit == NoUnits ? "cts / E" : "cts / $edep_unit"
+        xguide := "E $(ustring(edep_unit))"
+        yguide := edep_unit == NoUnits ? "cts / E" : "cts / $edep_unit"
 
         ustrip.(sum.(events.edep))
     end
@@ -105,8 +105,8 @@ end
     if seriestype in (:line, :scatter)
         @series begin
             seriestype := seriestype
-            xlabel --> X_label
-            ylabel --> Y_label
+            xguide --> X_label
+            yguide --> Y_label
             (X, Y)
         end
 
