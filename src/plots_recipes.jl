@@ -36,9 +36,9 @@ end
         subplot := 1
         seriestype := :histogram2d
         weights := edep_unitless
-        ratio := 1.0
+        aspect_ratio := 1.0
 
-        nbins --> 500
+        bins --> 500
 
         #title := "Detector Hits, XY"
         xguide := "x$length_ustring"
@@ -51,9 +51,9 @@ end
         subplot := 2
         seriestype := :histogram2d
         weights := edep_unitless
-        ratio := 1.0
+        aspect_ratio := 1.0
 
-        nbins --> 500
+        bins --> 500
 
         #title := "Detector Hits, ZY"
         xguide := "z$length_ustring"
@@ -66,9 +66,9 @@ end
         subplot := 3
         seriestype := :histogram2d
         weights := edep_unitless
-        ratio := 1.0
+        aspect_ratio := 1.0
 
-        nbins --> 500
+        bins --> 500
 
         # title := "Detector Hits, XZ"
         xguide := "x$length_ustring"
@@ -81,10 +81,10 @@ end
         subplot := 4
         seriestype := :stephist
 
-        nbins --> 1000
+        bins --> 1000
         yscale := :log10
 
-        normalized := :density
+        normalize := :density
         legend := false
 
         # title:="Energy Spectrum"
