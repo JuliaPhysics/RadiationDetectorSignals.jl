@@ -1,20 +1,5 @@
 # This file is a part of RadiationDetectorSignals.jl, licensed under the MIT License (MIT).
 
-
-function _unitful_axis_label(axis_label::AbstractString, units::Unitful.Unitlike)
-    u_str = units == NoUnits ? "" : "$units"
-    u_str2 = replace(u_str, "μ" => "u")
-    isempty(u_str2) ? axis_label : "$axis_label [$u_str2]"
-end
-
-
-function prep_for_plotting(X::AbstractVector{<:RealQuantity}, axis_label::AbstractString)
-    X_units = unit(eltype(X))
-    X_unitless = X_units == NoUnits ? X : ustrip.(X)
-    Array(X_unitless), _unitful_axis_label(axis_label, X_units), X_units
-end
-
-
 @recipe function f(events::DetectorHitEvents)
 
     edep_flat = collect(flatview(events.edep))
@@ -95,17 +80,16 @@ end
 
 
 @recipe function f(wf::RDWaveform)
-    X, X_label = prep_for_plotting(wf.time, "t")
-    Y, Y_label = prep_for_plotting(wf.value, "sample value")
 
     seriestype = get(plotattributes, :seriestype, :line)
 
     if seriestype in (:line, :scatter)
         @series begin
             seriestype := seriestype
-            xguide --> X_label
-            yguide --> Y_label
-            (X, Y)
+            xguide --> "t"
+            yguide --> "sample value"
+            unitformat --> :square
+            wf.time, wf.value
         end
 
     #=
