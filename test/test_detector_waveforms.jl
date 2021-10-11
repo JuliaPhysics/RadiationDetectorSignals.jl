@@ -3,7 +3,7 @@
 using RadiationDetectorSignals
 using Test
 
-using ArraysOfArrays, FillArrays, StructArrays
+using ArraysOfArrays, FillArrays, StructArrays, Unitful
 
 
 @testset "detector_waveforms" begin
@@ -15,6 +15,19 @@ using ArraysOfArrays, FillArrays, StructArrays
     A = ArrayOfRDWaveforms((timedata, wfdata))
 
     @test A.time[1] == A[1].time == 0:0.1:12.7
+    @test A.value isa ArrayOfSimilarArrays
+    @test A.value[1] == A[1].value
+end # testset
+
+@testset "detector_waveforms with units" begin
+    nwf = 50
+    wfdata = nestedview(rand(128, nwf) * u"eV")
+    timedata = Fill((0:0.1:12.7) * u"ns",nwf)
+
+    @test @inferred(ArrayOfRDWaveforms((wfdata, timedata))) isa StructArray
+    A = ArrayOfRDWaveforms((timedata, wfdata))
+
+    @test A.time[1] == A[1].time == (0:0.1:12.7) * u"ns"
     @test A.value isa ArrayOfSimilarArrays
     @test A.value[1] == A[1].value
 end # testset
