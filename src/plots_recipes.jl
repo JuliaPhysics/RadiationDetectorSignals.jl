@@ -16,21 +16,18 @@ end
 
 
 @recipe function f(events::DetectorHitEvents)
-    ustring(u) = u == NoUnits ? "" : " [$u]"
 
     edep_flat = collect(flatview(events.edep))
     edep_unit = unit(eltype(edep_flat))
     edep_unitless = Array(ustrip(edep_flat))
 
     layout := (2,2)
+    unitformat --> :square
 
     pos_flat = flatview(collect(flatview(events.pos)))
-    length_unit = unit(eltype(pos_flat))
-    length_ustring = ustring(length_unit)
-    pos_unitless = ustrip.(pos_flat)
-    pos_x = pos_unitless[1,:]
-    pos_y = pos_unitless[2,:]
-    pos_z = pos_unitless[3,:]
+    pos_x = pos_flat[1,:]
+    pos_y = pos_flat[2,:]
+    pos_z = pos_flat[3,:]
 
     @series begin
         subplot := 1
@@ -41,8 +38,9 @@ end
         bins --> 500
 
         #title := "Detector Hits, XY"
-        xguide := "x$length_ustring"
-        yguide := "y$length_ustring"
+        xguide := "x"
+        yguide := "y"
+        
 
         (pos_x, pos_y)
     end
@@ -56,8 +54,8 @@ end
         bins --> 500
 
         #title := "Detector Hits, ZY"
-        xguide := "z$length_ustring"
-        yguide := "y$length_ustring"
+        xguide := "z"
+        yguide := "y"
 
         (pos_z, pos_y)
     end
@@ -71,8 +69,8 @@ end
         bins --> 500
 
         # title := "Detector Hits, XZ"
-        xguide := "x$length_ustring"
-        yguide := "z$length_ustring"
+        xguide := "x"
+        yguide := "z"
 
         (pos_x, pos_z)
     end
@@ -88,10 +86,10 @@ end
         legend := false
 
         # title:="Energy Spectrum"
-        xguide := "E $(ustring(edep_unit))"
+        xguide := "E"
         yguide := edep_unit == NoUnits ? "cts / E" : "cts / $edep_unit"
 
-        ustrip.(sum.(events.edep))
+        sum.(events.edep)
     end
 end
 
