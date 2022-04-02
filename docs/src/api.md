@@ -1,26 +1,26 @@
 # API
 
-```@meta
-DocTestSetup  = quote
-    using RadiationDetectorSignals
-end
-```
-
-## Types
+## Modules
 
 ```@index
-Order = [:type]
+Order = [:module]
 ```
 
-## Functions
+## Types and constants
 
 ```@index
-Order = [:function]
+Order = [:type, :constant]
+```
+
+## Functions and macros
+
+```@index
+Order = [:macro, :function]
 ```
 
 # Documentation
 
 ```@autodocs
 Modules = [RadiationDetectorSignals]
-Order = [:type, :function]
+Order = [:module, :type, :constant, :macro, :function]
 ```
