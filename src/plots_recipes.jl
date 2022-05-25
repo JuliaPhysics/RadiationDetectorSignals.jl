@@ -87,9 +87,9 @@ end
         @series begin
             seriestype := seriestype
             xguide --> "t"
-            yguide --> "sample value"
+            yguide --> "signal"
             unitformat --> :square
-            wf.time, wf.value
+            wf.time, wf.signal
         end
 
     #=
