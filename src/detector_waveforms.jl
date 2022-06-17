@@ -35,7 +35,6 @@ export RDWaveform
 
 RDWaveform{T,U,TV,UV}(wf::RDWaveform) where {T,U,TV,UV} = RDWaveform{T,U,TV,UV}(wf.time, wf.signal)
 Base.convert(::Type{RDWaveform{T,U,TV,UV}}, wf::RDWaveform) where {T,U,TV,UV} = RDWaveform{T,U,TV,UV}(wf)
-Base.getproperty(wf::RDWaveform, sym::Symbol) = (sym == :value) ? wf.signal : Base.getfield(wf, sym)
 
 
 # ToDo: function for waveform duration. Use IntervalSets.duration?
