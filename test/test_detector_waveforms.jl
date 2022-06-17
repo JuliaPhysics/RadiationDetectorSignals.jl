@@ -15,8 +15,8 @@ using ArraysOfArrays, FillArrays, StructArrays, Unitful
     A = ArrayOfRDWaveforms((timedata, wfdata))
 
     @test A.time[1] == A[1].time == 0:0.1:12.7
-    @test A.value isa ArrayOfSimilarArrays
-    @test A.value[1] == A[1].value
+    @test A.signal isa ArrayOfSimilarArrays
+    @test A.signal[1] == A[1].signal
 end # testset
 
 @testset "detector_waveforms with units" begin
@@ -28,6 +28,6 @@ end # testset
     A = ArrayOfRDWaveforms((timedata, wfdata))
 
     @test A.time[1] == A[1].time == (0:0.1:12.7) * u"ns"
-    @test A.value isa ArrayOfSimilarArrays
-    @test A.value[1] == A[1].value
+    @test A.signal isa ArrayOfSimilarArrays
+    @test A.signal[1] == A[1].signal
 end # testset
