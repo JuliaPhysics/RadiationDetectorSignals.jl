@@ -16,7 +16,6 @@ using Tables
 using TypedTables
 using UnsafeArrays
 using Unitful
-using UnitfulRecipes
 
 import StatsBase
 
