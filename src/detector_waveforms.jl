@@ -36,6 +36,7 @@ export RDWaveform
 RDWaveform{T,U,TV,UV}(wf::RDWaveform) where {T,U,TV,UV} = RDWaveform{T,U,TV,UV}(wf.time, wf.signal)
 Base.convert(::Type{RDWaveform{T,U,TV,UV}}, wf::RDWaveform) where {T,U,TV,UV} = RDWaveform{T,U,TV,UV}(wf)
 
+Base.isapprox(a::RDWaveform, b::RDWaveform; kwargs...) = isapprox(a.time, b.time; kwargs...) && isapprox(a.signal, b.signal; kwargs...)
 
 # ToDo: function for waveform duration. Use IntervalSets.duration?
 
@@ -83,6 +84,15 @@ Base.convert(::Type{ArrayOfRDWaveforms}, waveforms::StructArray{<:RDWaveform}) =
 
 Base.convert(::Type{StructArray{RDWaveform}}, waveforms::AbstractVector{<:RDWaveform}) = StructArray{RDWaveform}(waveforms)
 Base.convert(::Type{StructArray{RDWaveform}}, waveforms::StructArray{<:RDWaveform}) = waveforms
+
+# Workaround for Uniful.jl issue 562:
+function _array_isapprox(x, y; kwargs...)
+    all(ab -> isapprox(ab[1], ab[2]; kwargs...), zip(x, y))
+end
+
+function Base.isapprox(a::ArrayOfRDWaveforms, b::ArrayOfRDWaveforms; kwargs...)
+    _array_isapprox(a.time, b.time; kwargs...) && _array_isapprox(a.signal, b.signal; kwargs...)
+end
 
 
 # Specialize getindex to properly support ArraysOfArrays, preventing
