@@ -38,6 +38,8 @@ Base.convert(::Type{RDWaveform{T,U,TV,UV}}, wf::RDWaveform) where {T,U,TV,UV} = 
 
 Base.isapprox(a::RDWaveform, b::RDWaveform; kwargs...) = isapprox(a.time, b.time; kwargs...) && isapprox(a.signal, b.signal; kwargs...)
 
+Base.float(wf::RDWaveform) = RDWaveform(float(wf.time), float(wf.signal))
+
 # ToDo: function for waveform duration. Use IntervalSets.duration?
 
 
@@ -104,6 +106,8 @@ end
 @inline ArrayOfRDWaveforms(contents) = StructArray{RDWaveform}(contents)
 
 
+# ToDo:
+# Base.broadcast.broadcasted(::typeof(Base.float), a::ArrayOfRDWaveforms)
 
 
 
@@ -118,9 +122,6 @@ end
 end
 =#
 
-function Base.float(wf::RDWaveform)
-    #...
-end
 
 
 
