@@ -17,6 +17,7 @@ using TypedTables
 using UnsafeArrays
 using Unitful
 
+import Statistics
 import StatsBase
 
 include("numeric_types.jl")
