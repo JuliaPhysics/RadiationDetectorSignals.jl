@@ -43,6 +43,19 @@ Base.float(wf::RDWaveform) = RDWaveform(float(wf.time), float(wf.signal))
 # ToDo: function for waveform duration. Use IntervalSets.duration?
 
 
+function Base.:(+)(a::RDWaveform, b::RDWaveform)
+    a.time == b.time || throw(ArgumentError("Can't add waveform with different time axis"))
+    RDWaveform(a.time, a.signal + b.signal)
+end
+
+Base.:(*)(a::Real, b::RDWaveform) = RDWaveform(b.time, a * b.signal)
+Base.:(*)(a::RDWaveform, b::Real) = b * a
+
+Base.:(\)(a::Real, b::RDWaveform) = b / a
+Base.:(/)(a::RDWaveform, b::Real) = b * inv(a)
+
+
+
 """
     ArrayOfRDWaveforms = StructArray{<:RDWaveform, ...)
 
