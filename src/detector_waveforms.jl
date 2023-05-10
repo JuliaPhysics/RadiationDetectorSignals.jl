@@ -52,7 +52,7 @@ Base.:(*)(a::Real, b::RDWaveform) = RDWaveform(b.time, a * b.signal)
 Base.:(*)(a::RDWaveform, b::Real) = b * a
 
 Base.:(\)(a::Real, b::RDWaveform) = b / a
-Base.:(/)(a::RDWaveform, b::Real) = b * inv(a)
+Base.:(/)(a::RDWaveform, b::Real) = a * inv(b)
 
 
 
@@ -117,6 +117,19 @@ end
 
 
 @inline ArrayOfRDWaveforms(contents) = StructArray{RDWaveform}(contents)
+
+
+_common_time_axis(X::Fill) = first(X)
+function _common_time_axis(X::AbstractArray)
+    x = first(X)
+    all(isequal(x), X) || throw(ArgumentError("Time axes must all be equal"))
+    return x
+end
+
+Base.sum(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), sum(wfs.signal))
+Statistics.mean(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), Statistics.mean(wfs.signal))
+Statistics.var(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), Statistics.var(wfs.signal))
+Statistics.std(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), Statistics.std(wfs.signal))
 
 
 # ToDo:
