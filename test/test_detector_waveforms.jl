@@ -31,3 +31,23 @@ end # testset
     @test A.signal isa ArrayOfSimilarArrays
     @test A.signal[1] == A[1].signal
 end # testset
+
+@testset "detector_waveform equality" begin
+    wfdata = rand(128)
+    timedata = 0:0.1:12.7
+
+    wf1 = RDWaveform(wfdata, timedata)
+    wf2 = RDWaveform(reverse(wfdata),  timedata)
+    wf3 = RDWaveform(deepcopy(wfdata), timedata)
+
+    @test wf1 != wf2
+    @test wf1 == wf3
+
+    A = ArrayOfRDWaveforms([wf1, wf2])
+    B = ArrayOfRDWaveforms([wf1, wf3])
+    C = ArrayOfRDWaveforms([wf3, wf2])
+
+    @test A != B 
+    @test A == C
+end
+
