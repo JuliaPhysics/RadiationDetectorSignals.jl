@@ -36,6 +36,9 @@ export RDWaveform
 RDWaveform{T,U,TV,UV}(wf::RDWaveform) where {T,U,TV,UV} = RDWaveform{T,U,TV,UV}(wf.time, wf.signal)
 Base.convert(::Type{RDWaveform{T,U,TV,UV}}, wf::RDWaveform) where {T,U,TV,UV} = RDWaveform{T,U,TV,UV}(wf)
 
+Base.:(==)(wf1::RDWaveform, wf2::RDWaveform) =
+    typeof(wf1) == typeof(wf2) && wf1.time == wf2.time && wf1.signal == wf2.signal
+
 Base.isapprox(a::RDWaveform, b::RDWaveform; kwargs...) = isapprox(a.time, b.time; kwargs...) && isapprox(a.signal, b.signal; kwargs...)
 
 Base.float(wf::RDWaveform) = RDWaveform(float(wf.time), float(wf.signal))
