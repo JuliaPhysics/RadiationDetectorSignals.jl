@@ -6,7 +6,6 @@ module RadiationDetectorSignals
 
 using ArraysOfArrays
 using ElasticArrays
-using EncodedArrays
 using FillArrays
 using IntervalSets
 using RecipesBase
