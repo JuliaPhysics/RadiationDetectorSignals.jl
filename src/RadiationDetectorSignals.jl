@@ -16,9 +16,10 @@ using TypedTables
 using UnsafeArrays
 using Unitful
 
+using Unitful: RealOrRealQuantity as RealQuantity
+
 import StatsBase
 
-include("numeric_types.jl")
 include("array_types.jl")
 include("detector_hits.jl")
 include("detector_waveforms.jl")
