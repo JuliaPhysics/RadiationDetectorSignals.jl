@@ -15,7 +15,7 @@ compact memory layout.
 """
 const DetectorHit = NamedTuple{
     (:evtno, :detno, :thit, :edep, :pos),
-    <:Tuple{Integer, Integer, RealQuantity, RealQuantity, AbstractVector{<:RealQuantity}}
+    <:Tuple{Integer, Integer, RealQuantity, RealQuantity, Any}
 }
 export DetectorHit
 
@@ -39,7 +39,7 @@ const DetectorHitEvents = TypedTables.Table{
             Union{Integer, AbstractVector{<:Integer}},
             AbstractVector{<:RealQuantity},
             AbstractVector{<:RealQuantity},
-            AbstractVector{<:AbstractVector{<:RealQuantity}}
+            AbstractVector
         }
     }
 }
