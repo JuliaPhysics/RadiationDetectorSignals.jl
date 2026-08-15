@@ -114,6 +114,30 @@ end
     @test @inferred(-wf_a) == RDWaveform(timedata, -wfdata_a)
 end
 
+@testset "detector_waveform scalar shifts" begin
+    timedata = 0:0.1:12.7
+    wfdata = rand(128)
+    wf = RDWaveform(timedata, wfdata)
+
+    @test @inferred(wf + 2.5) == RDWaveform(timedata, wfdata .+ 2.5)
+    @test @inferred(2.5 + wf) == wf + 2.5
+    @test @inferred(wf - 2.5) == RDWaveform(timedata, wfdata .- 2.5)
+    @test @inferred(2.5 - wf) == RDWaveform(timedata, 2.5 .- wfdata)
+    @test (wf + 2.5).time == wf.time
+    @test wf + 2.5 - 2.5 ≈ wf
+end
+
+@testset "detector_waveform scalar shifts with units" begin
+    timedata = (0:0.1:12.7) * u"ns"
+    wfdata = rand(128) * u"eV"
+    wf = RDWaveform(timedata, wfdata)
+
+    @test @inferred(wf + 2.5u"eV") == RDWaveform(timedata, wfdata .+ 2.5u"eV")
+    @test @inferred(2.5u"eV" + wf) == wf + 2.5u"eV"
+    @test @inferred(wf - 2.5u"eV") == RDWaveform(timedata, wfdata .- 2.5u"eV")
+    @test_throws Unitful.DimensionError wf + 2.5
+end
+
 @testset "detector_waveform scalar multiplication and division" begin
     timedata = 0:0.1:12.7
     wfdata = rand(128)
@@ -274,6 +298,52 @@ end
     other_time = ArrayOfRDWaveforms((Fill(timeaxis .+ 1, nwf), nestedview(reduce(hcat, signals))))
     @test_throws ArgumentError contiguous .+ other_time
     @test_throws ArgumentError contiguous .- other_time
+end
+
+@testset "detector_waveform broadcast shifts" begin
+    timeaxis = 0:0.5:1.5
+    signals = [[1.0, 2.0, 4.0, 8.0], [3.0, 6.0, 8.0, 16.0], [5.0, 10.0, 12.0, 24.0]]
+    nwf = length(signals)
+
+    contiguous = ArrayOfRDWaveforms((Fill(timeaxis, nwf), nestedview(reduce(hcat, signals))))
+    ragged = ArrayOfRDWaveforms((Fill(timeaxis, nwf), VectorOfVectors(signals)))
+
+    # One shift applied to every waveform.
+    for wfs in (contiguous, ragged)
+        @test all(i -> (wfs .+ 10.0)[i] == wfs[i] + 10.0, eachindex(wfs))
+        @test all(i -> (10.0 .+ wfs)[i] == wfs[i] + 10.0, eachindex(wfs))
+        @test all(i -> (wfs .- 10.0)[i] == wfs[i] - 10.0, eachindex(wfs))
+        @test all(i -> (10.0 .- wfs)[i] == 10.0 - wfs[i], eachindex(wfs))
+    end
+
+    # One shift per waveform, as when subtracting per-waveform baselines.
+    shifts = [100.0, 200.0, 300.0]
+    for wfs in (contiguous, ragged)
+        @test all(i -> (wfs .+ shifts)[i] == wfs[i] + shifts[i], eachindex(wfs))
+        @test all(i -> (shifts .+ wfs)[i] == wfs[i] + shifts[i], eachindex(wfs))
+        @test all(i -> (wfs .- shifts)[i] == wfs[i] - shifts[i], eachindex(wfs))
+        @test all(i -> (shifts .- wfs)[i] == shifts[i] - wfs[i], eachindex(wfs))
+    end
+
+    @test (contiguous .+ 10.0).signal isa ArrayOfSimilarArrays
+    @test (10.0 .- contiguous).signal isa ArrayOfSimilarArrays
+    @test (contiguous .+ shifts).signal isa ArrayOfSimilarArrays
+    @test (contiguous .- shifts).signal isa ArrayOfSimilarArrays
+    @test (contiguous .+ shifts).time == contiguous.time
+
+    @test_throws DimensionMismatch contiguous .+ [1.0, 2.0]
+    @test_throws DimensionMismatch contiguous .- [1.0, 2.0]
+end
+
+@testset "detector_waveform broadcast shifts with units" begin
+    timeaxis = (0:0.5:1.5) * u"ns"
+    signals = [[1.0, 2.0, 4.0, 8.0] * u"eV", [3.0, 6.0, 8.0, 16.0] * u"eV"]
+    wfs = ArrayOfRDWaveforms((Fill(timeaxis, length(signals)), nestedview(reduce(hcat, signals))))
+    shifts = [10.0, 20.0] * u"eV"
+
+    @test all(i -> (wfs .+ 10.0u"eV")[i] == wfs[i] + 10.0u"eV", eachindex(wfs))
+    @test all(i -> (wfs .- shifts)[i] == wfs[i] - shifts[i], eachindex(wfs))
+    @test (wfs .+ shifts).signal isa ArrayOfSimilarArrays
 end
 
 @testset "detector_waveform broadcasting with units" begin
