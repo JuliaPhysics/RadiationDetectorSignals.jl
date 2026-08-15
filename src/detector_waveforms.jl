@@ -72,28 +72,43 @@ Negate a waveform's samples, keeping its time axis.
 """
 Base.:(-)(a::RDWaveform) = RDWaveform(a.time, -a.signal)
 
+# A plain number carries no unit of its own, so it shifts samples by that amount
+# expressed in whatever unit the samples themselves use.
+_in_sample_units(a, ::Type) = a
+_in_sample_units(a::Real, ::Type{T}) where {T<:Quantity} = a * unit(T)
+_in_sample_units(a::AbstractVector{<:Real}, ::Type{T}) where {T<:Quantity} = a * unit(T)
+
+_shift_by(signal, a) = signal .+ _in_sample_units(a, eltype(signal))
+
 """
     +(wf::RDWaveform, a::RealQuantity)
     +(a::RealQuantity, wf::RDWaveform)
 
 Shift every sample of a waveform by `a`, keeping its time axis.
+
+A plain number shifts the samples in whatever unit they carry.
 """
-Base.:(+)(wf::RDWaveform, a::RealQuantity) = RDWaveform(wf.time, wf.signal .+ a)
+Base.:(+)(wf::RDWaveform, a::RealQuantity) = RDWaveform(wf.time, _shift_by(wf.signal, a))
 Base.:(+)(a::RealQuantity, wf::RDWaveform) = wf + a
 
 """
     -(wf::RDWaveform, a::RealQuantity)
 
 Shift every sample of a waveform by `-a`, keeping its time axis.
+
+A plain number shifts the samples in whatever unit they carry.
 """
-Base.:(-)(wf::RDWaveform, a::RealQuantity) = RDWaveform(wf.time, wf.signal .- a)
+Base.:(-)(wf::RDWaveform, a::RealQuantity) = RDWaveform(wf.time, _shift_by(wf.signal, -a))
 
 """
     -(a::RealQuantity, wf::RDWaveform)
 
 Subtract every sample of a waveform from `a`, keeping its time axis.
+
+A plain number is taken in whatever unit the samples carry.
 """
-Base.:(-)(a::RealQuantity, wf::RDWaveform) = RDWaveform(wf.time, a .- wf.signal)
+Base.:(-)(a::RealQuantity, wf::RDWaveform) =
+    RDWaveform(wf.time, _in_sample_units(a, eltype(wf.signal)) .- wf.signal)
 
 """
     *(a::Real, b::RDWaveform)
@@ -320,13 +335,13 @@ Base.Broadcast.broadcasted(::typeof(-), a::ArrayOfRDWaveforms, b::ArrayOfRDWavef
     _combined_waveforms(a, b, (x, y) -> x .- y)
 
 Base.Broadcast.broadcasted(::typeof(+), wfs::ArrayOfRDWaveforms, a::RealQuantity) =
-    _scaled_waveforms(wfs, x -> x .+ a)
+    _scaled_waveforms(wfs, x -> x .+ _in_sample_units(a, eltype(x)))
 Base.Broadcast.broadcasted(::typeof(+), a::RealQuantity, wfs::ArrayOfRDWaveforms) =
-    _scaled_waveforms(wfs, x -> a .+ x)
+    _scaled_waveforms(wfs, x -> _in_sample_units(a, eltype(x)) .+ x)
 Base.Broadcast.broadcasted(::typeof(-), wfs::ArrayOfRDWaveforms, a::RealQuantity) =
-    _scaled_waveforms(wfs, x -> x .- a)
+    _scaled_waveforms(wfs, x -> x .- _in_sample_units(a, eltype(x)))
 Base.Broadcast.broadcasted(::typeof(-), a::RealQuantity, wfs::ArrayOfRDWaveforms) =
-    _scaled_waveforms(wfs, x -> a .- x)
+    _scaled_waveforms(wfs, x -> _in_sample_units(a, eltype(x)) .- x)
 
 
 # One shift per waveform: the shifts broadcast along the sample axis, so
@@ -338,7 +353,8 @@ _shift_signals(f, signals::AbstractVector{<:AbstractVector}, a::AbstractVector) 
 
 function _shifted_waveforms(wfs::ArrayOfRDWaveforms, a::AbstractVector{<:RealQuantity}, f)
     axes(a) == axes(wfs) || throw(DimensionMismatch("Need one shift per waveform: $(axes(a)) vs $(axes(wfs))"))
-    ArrayOfRDWaveforms((wfs.time, _shift_signals(f, wfs.signal, a)))
+    shifts = _in_sample_units(a, eltype(eltype(wfs.signal)))
+    ArrayOfRDWaveforms((wfs.time, _shift_signals(f, wfs.signal, shifts)))
 end
 
 Base.Broadcast.broadcasted(::typeof(+), wfs::ArrayOfRDWaveforms, a::AbstractVector{<:RealQuantity}) =

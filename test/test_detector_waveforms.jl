@@ -135,7 +135,13 @@ end
     @test @inferred(wf + 2.5u"eV") == RDWaveform(timedata, wfdata .+ 2.5u"eV")
     @test @inferred(2.5u"eV" + wf) == wf + 2.5u"eV"
     @test @inferred(wf - 2.5u"eV") == RDWaveform(timedata, wfdata .- 2.5u"eV")
-    @test_throws Unitful.DimensionError wf + 2.5
+
+    # A plain number shifts the samples in the unit they already carry.
+    @test @inferred(wf + 2.5) == wf + 2.5u"eV"
+    @test @inferred(2.5 + wf) == wf + 2.5u"eV"
+    @test @inferred(wf - 2.5) == wf - 2.5u"eV"
+    @test @inferred(2.5 - wf) == 2.5u"eV" - wf
+    @test wf + 2 == wf + 2u"eV"
 end
 
 @testset "detector_waveform scalar multiplication and division" begin
@@ -344,6 +350,12 @@ end
     @test all(i -> (wfs .+ 10.0u"eV")[i] == wfs[i] + 10.0u"eV", eachindex(wfs))
     @test all(i -> (wfs .- shifts)[i] == wfs[i] - shifts[i], eachindex(wfs))
     @test (wfs .+ shifts).signal isa ArrayOfSimilarArrays
+
+    # Plain numbers, scalar or one per waveform, shift in the samples' unit.
+    @test all(i -> (wfs .+ 10.0)[i] == wfs[i] + 10.0u"eV", eachindex(wfs))
+    @test all(i -> (10.0 .- wfs)[i] == 10.0u"eV" - wfs[i], eachindex(wfs))
+    @test all(i -> (wfs .- [10.0, 20.0])[i] == wfs[i] - shifts[i], eachindex(wfs))
+    @test (wfs .- [10.0, 20.0]).signal isa ArrayOfSimilarArrays
 end
 
 @testset "detector_waveform broadcasting with units" begin
