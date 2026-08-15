@@ -173,15 +173,55 @@ function _common_time_axis(X::AbstractArray)
 end
 
 
+# Accumulator element type for sample-wise sums. Small integers widen to Int, as
+# Base.sum does for plain arrays: detector samples are commonly Int32, and summing
+# thousands of them in Int32 overflows silently.
+_sample_sum_eltype(::Type{T}) where {T} = typeof(zero(T) + zero(T))
+_sample_sum_eltype(::Type{T}) where {T<:Union{Int8,Int16,Int32}} = Int
+_sample_sum_eltype(::Type{T}) where {T<:Union{UInt8,UInt16,UInt32}} = UInt
+
+# Sample-wise reductions accumulate into a single preallocated buffer rather than
+# combining whole signal vectors pairwise: one allocation instead of one per
+# waveform, and independent of how the signals are stored.
+function _sample_sum(signals::AbstractVector{<:AbstractVector})
+    first_signal = first(signals)
+    out = similar(first_signal, _sample_sum_eltype(eltype(first_signal)))
+    fill!(out, zero(eltype(out)))
+    for signal in signals
+        axes(signal) == axes(out) || throw(DimensionMismatch("Waveform signals must all have the same axes: $(axes(signal)) vs $(axes(out))"))
+        out .+= signal
+    end
+    return out
+end
+
+_sample_mean(signals::AbstractVector{<:AbstractVector}) = _sample_sum(signals) ./ length(signals)
+
+# Two-pass variance: numerically better behaved than accumulating raw squares, and
+# the fused broadcast below allocates no temporary per waveform.
+function _sample_var(signals::AbstractVector{<:AbstractVector})
+    m = _sample_mean(signals)
+    acc = similar(m, typeof(abs2(zero(eltype(m)))))
+    fill!(acc, zero(eltype(acc)))
+    for signal in signals
+        axes(signal) == axes(acc) || throw(DimensionMismatch("Waveform signals must all have the same axes: $(axes(signal)) vs $(axes(acc))"))
+        acc .+= abs2.(signal .- m)
+    end
+    return acc ./ (length(signals) - 1)
+end
+
+_sample_std(signals::AbstractVector{<:AbstractVector}) = sqrt.(_sample_var(signals))
+
+
 """
     sum(wfs::ArrayOfRDWaveforms)
 
 Sample-wise sum over all waveforms in `wfs`, as a single [`RDWaveform`](@ref).
 
 All waveforms must share the same time axis, which becomes the time axis of the
-result; throws an `ArgumentError` otherwise.
+result; throws an `ArgumentError` otherwise. Integer samples narrower than `Int`
+accumulate in `Int` to avoid overflow.
 """
-Base.sum(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), sum(wfs.signal))
+Base.sum(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), _sample_sum(wfs.signal))
 
 """
     mean(wfs::ArrayOfRDWaveforms)
@@ -191,17 +231,18 @@ Sample-wise mean over all waveforms in `wfs`, as a single [`RDWaveform`](@ref).
 All waveforms must share the same time axis, which becomes the time axis of the
 result; throws an `ArgumentError` otherwise.
 """
-StatsBase.mean(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), StatsBase.mean(wfs.signal))
+StatsBase.mean(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), _sample_mean(wfs.signal))
 
 """
     var(wfs::ArrayOfRDWaveforms)
 
 Sample-wise variance over all waveforms in `wfs`, as a single [`RDWaveform`](@ref).
 
-All waveforms must share the same time axis, which becomes the time axis of the
-result; throws an `ArgumentError` otherwise.
+Uses the Bessel-corrected denominator `length(wfs) - 1`. All waveforms must share
+the same time axis, which becomes the time axis of the result; throws an
+`ArgumentError` otherwise.
 """
-StatsBase.var(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), StatsBase.var(wfs.signal))
+StatsBase.var(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), _sample_var(wfs.signal))
 
 """
     std(wfs::ArrayOfRDWaveforms)
@@ -209,10 +250,51 @@ StatsBase.var(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time),
 Sample-wise standard deviation over all waveforms in `wfs`, as a single
 [`RDWaveform`](@ref).
 
-All waveforms must share the same time axis, which becomes the time axis of the
-result; throws an `ArgumentError` otherwise.
+Uses the Bessel-corrected denominator `length(wfs) - 1`. All waveforms must share
+the same time axis, which becomes the time axis of the result; throws an
+`ArgumentError` otherwise.
 """
-StatsBase.std(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), StatsBase.std(wfs.signal))
+StatsBase.std(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), _sample_std(wfs.signal))
+
+
+# Broadcasting an operator over an ArrayOfRDWaveforms is evaluated eagerly, one
+# operation over the whole underlying sample storage, so that signals stored
+# contiguously stay contiguous instead of being rebuilt as a vector of separately
+# allocated vectors. Broadcast fusion is given up in exchange: an expression like
+# `2 .* wfs .+ wfs` evaluates in two steps rather than one.
+
+_broadcast_signals(f, signals::ArrayOfSimilarVectors) = nestedview(f(flatview(signals)))
+_broadcast_signals(f, signals::AbstractVector{<:AbstractVector}) = map(f, signals)
+
+_broadcast_signals(f, a::ArrayOfSimilarVectors, b::ArrayOfSimilarVectors) =
+    nestedview(f(flatview(a), flatview(b)))
+_broadcast_signals(f, a::AbstractVector{<:AbstractVector}, b::AbstractVector{<:AbstractVector}) =
+    map(f, a, b)
+
+_scaled_waveforms(wfs::ArrayOfRDWaveforms, f) =
+    ArrayOfRDWaveforms((wfs.time, _broadcast_signals(f, wfs.signal)))
+
+function _combined_waveforms(a::ArrayOfRDWaveforms, b::ArrayOfRDWaveforms, f)
+    a.time == b.time || throw(ArgumentError("Can't combine ArrayOfRDWaveforms with different time axes"))
+    ArrayOfRDWaveforms((a.time, _broadcast_signals(f, a.signal, b.signal)))
+end
+
+Base.Broadcast.broadcasted(::typeof(*), a::Real, wfs::ArrayOfRDWaveforms) =
+    _scaled_waveforms(wfs, x -> a .* x)
+Base.Broadcast.broadcasted(::typeof(*), wfs::ArrayOfRDWaveforms, a::Real) =
+    _scaled_waveforms(wfs, x -> x .* a)
+Base.Broadcast.broadcasted(::typeof(/), wfs::ArrayOfRDWaveforms, a::Real) =
+    _scaled_waveforms(wfs, x -> x ./ a)
+Base.Broadcast.broadcasted(::typeof(\), a::Real, wfs::ArrayOfRDWaveforms) =
+    _scaled_waveforms(wfs, x -> a .\ x)
+
+Base.Broadcast.broadcasted(::typeof(-), wfs::ArrayOfRDWaveforms) =
+    _scaled_waveforms(wfs, x -> .-x)
+
+Base.Broadcast.broadcasted(::typeof(+), a::ArrayOfRDWaveforms, b::ArrayOfRDWaveforms) =
+    _combined_waveforms(a, b, (x, y) -> x .+ y)
+Base.Broadcast.broadcasted(::typeof(-), a::ArrayOfRDWaveforms, b::ArrayOfRDWaveforms) =
+    _combined_waveforms(a, b, (x, y) -> x .- y)
 
 
 # ToDo:
