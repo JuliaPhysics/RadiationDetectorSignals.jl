@@ -3,7 +3,7 @@
 using RadiationDetectorSignals
 using Test
 
-using ArraysOfArrays, FillArrays, StatsBase, StructArrays, Unitful
+using ArraysOfArrays, FillArrays, Statistics, StructArrays, Unitful
 
 
 # A vector whose indices do not start at one, used to check that sample-wise

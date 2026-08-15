@@ -276,7 +276,7 @@ Sample-wise mean over all waveforms in `wfs`, as a single [`RDWaveform`](@ref).
 All waveforms must share the same time axis, which becomes the time axis of the
 result; throws an `ArgumentError` otherwise.
 """
-StatsBase.mean(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), _sample_mean(wfs.signal))
+Statistics.mean(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), _sample_mean(wfs.signal))
 
 """
     var(wfs::ArrayOfRDWaveforms)
@@ -287,7 +287,7 @@ Uses the Bessel-corrected denominator `length(wfs) - 1`. All waveforms must shar
 the same time axis, which becomes the time axis of the result; throws an
 `ArgumentError` otherwise.
 """
-StatsBase.var(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), _sample_var(wfs.signal))
+Statistics.var(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), _sample_var(wfs.signal))
 
 """
     std(wfs::ArrayOfRDWaveforms)
@@ -299,7 +299,7 @@ Uses the Bessel-corrected denominator `length(wfs) - 1`. All waveforms must shar
 the same time axis, which becomes the time axis of the result; throws an
 `ArgumentError` otherwise.
 """
-StatsBase.std(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), _sample_std(wfs.signal))
+Statistics.std(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), _sample_std(wfs.signal))
 
 
 # Broadcasting an operator over an ArrayOfRDWaveforms is evaluated eagerly, one

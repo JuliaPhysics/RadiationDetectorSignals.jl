@@ -18,6 +18,7 @@ using Unitful
 
 using Unitful: RealOrRealQuantity as RealQuantity
 
+import Statistics
 import StatsBase
 
 include("array_types.jl")
