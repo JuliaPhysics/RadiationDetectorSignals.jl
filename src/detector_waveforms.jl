@@ -41,6 +41,62 @@ Base.isapprox(a::RDWaveform, b::RDWaveform; kwargs...) = isapprox(a.time, b.time
 
 Base.float(wf::RDWaveform) = RDWaveform(float(wf.time), float(wf.signal))
 
+"""
+    +(a::RDWaveform, b::RDWaveform)
+
+Sample-wise sum of two waveforms that share the same time axis.
+
+Throws an `ArgumentError` if `a` and `b` have different time axes.
+"""
+function Base.:(+)(a::RDWaveform, b::RDWaveform)
+    a.time == b.time || throw(ArgumentError("Can't add RDWaveform with different time axes"))
+    RDWaveform(a.time, a.signal + b.signal)
+end
+
+"""
+    -(a::RDWaveform, b::RDWaveform)
+
+Sample-wise difference of two waveforms that share the same time axis.
+
+Throws an `ArgumentError` if `a` and `b` have different time axes.
+"""
+function Base.:(-)(a::RDWaveform, b::RDWaveform)
+    a.time == b.time || throw(ArgumentError("Can't subtract RDWaveform with different time axes"))
+    RDWaveform(a.time, a.signal - b.signal)
+end
+
+"""
+    -(a::RDWaveform)
+
+Negate a waveform's samples, keeping its time axis.
+"""
+Base.:(-)(a::RDWaveform) = RDWaveform(a.time, -a.signal)
+
+"""
+    *(a::Real, b::RDWaveform)
+    *(a::RDWaveform, b::Real)
+
+Scale a waveform's samples by a scalar, keeping its time axis.
+"""
+Base.:(*)(a::Real, b::RDWaveform) = RDWaveform(b.time, a * b.signal)
+Base.:(*)(a::RDWaveform, b::Real) = b * a
+
+"""
+    /(a::RDWaveform, b::Real)
+
+Divide a waveform's samples by a scalar, keeping its time axis.
+"""
+Base.:(/)(a::RDWaveform, b::Real) = a * inv(b)
+
+"""
+    \\(a::Real, b::RDWaveform)
+
+Divide a waveform's samples by a scalar, keeping its time axis.
+
+Equivalent to `b / a`.
+"""
+Base.:(\)(a::Real, b::RDWaveform) = b / a
+
 # ToDo: function for waveform duration. Use IntervalSets.duration?
 
 
@@ -105,6 +161,58 @@ end
 
 
 @inline ArrayOfRDWaveforms(contents) = StructArray{RDWaveform}(contents)
+
+
+# Reduce the time axes of an ArrayOfRDWaveforms to the single axis they all share:
+_common_time_axis(X::Fill) = first(X)
+
+function _common_time_axis(X::AbstractArray)
+    x = first(X)
+    all(isequal(x), X) || throw(ArgumentError("Waveform time axes must all be equal"))
+    return x
+end
+
+
+"""
+    sum(wfs::ArrayOfRDWaveforms)
+
+Sample-wise sum over all waveforms in `wfs`, as a single [`RDWaveform`](@ref).
+
+All waveforms must share the same time axis, which becomes the time axis of the
+result; throws an `ArgumentError` otherwise.
+"""
+Base.sum(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), sum(wfs.signal))
+
+"""
+    mean(wfs::ArrayOfRDWaveforms)
+
+Sample-wise mean over all waveforms in `wfs`, as a single [`RDWaveform`](@ref).
+
+All waveforms must share the same time axis, which becomes the time axis of the
+result; throws an `ArgumentError` otherwise.
+"""
+StatsBase.mean(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), StatsBase.mean(wfs.signal))
+
+"""
+    var(wfs::ArrayOfRDWaveforms)
+
+Sample-wise variance over all waveforms in `wfs`, as a single [`RDWaveform`](@ref).
+
+All waveforms must share the same time axis, which becomes the time axis of the
+result; throws an `ArgumentError` otherwise.
+"""
+StatsBase.var(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), StatsBase.var(wfs.signal))
+
+"""
+    std(wfs::ArrayOfRDWaveforms)
+
+Sample-wise standard deviation over all waveforms in `wfs`, as a single
+[`RDWaveform`](@ref).
+
+All waveforms must share the same time axis, which becomes the time axis of the
+result; throws an `ArgumentError` otherwise.
+"""
+StatsBase.std(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), StatsBase.std(wfs.signal))
 
 
 # ToDo:
