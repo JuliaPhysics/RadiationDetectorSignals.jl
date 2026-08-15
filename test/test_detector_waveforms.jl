@@ -144,6 +144,22 @@ end
     @test wf + 2 == wf + 2u"eV"
 end
 
+@testset "detector_waveform scalar shifts mixing units" begin
+    timedata = 0:0.1:12.7
+    wfdata = rand(128)
+    wf = RDWaveform(timedata, wfdata)
+
+    # Samples without a unit take the unit of the shift.
+    @test (wf + 2.5u"eV").signal == wfdata * u"eV" .+ 2.5u"eV"
+    @test (2.5u"eV" + wf).signal == wfdata * u"eV" .+ 2.5u"eV"
+    @test (wf - 2.5u"eV").signal == wfdata * u"eV" .- 2.5u"eV"
+    @test (2.5u"eV" - wf).signal == 2.5u"eV" .- wfdata * u"eV"
+    @test (wf + 2.5u"eV").time == wf.time
+
+    # Both sides unitless stays unitless.
+    @test (wf + 2.5).signal == wfdata .+ 2.5
+end
+
 @testset "detector_waveform scalar multiplication and division" begin
     timedata = 0:0.1:12.7
     wfdata = rand(128)
@@ -339,6 +355,15 @@ end
 
     @test_throws DimensionMismatch contiguous .+ [1.0, 2.0]
     @test_throws DimensionMismatch contiguous .- [1.0, 2.0]
+
+    # Unitless samples take the unit of a unitful shift, scalar or per waveform.
+    for wfs in (contiguous, ragged)
+        @test all(i -> (wfs .+ 10.0u"eV")[i] == wfs[i] + 10.0u"eV", eachindex(wfs))
+        @test all(i -> (10.0u"eV" .- wfs)[i] == 10.0u"eV" - wfs[i], eachindex(wfs))
+        @test all(i -> (wfs .- shifts * u"eV")[i] == wfs[i] - shifts[i] * u"eV", eachindex(wfs))
+    end
+    @test (contiguous .+ 10.0u"eV").signal isa ArrayOfSimilarArrays
+    @test (contiguous .- shifts * u"eV").signal isa ArrayOfSimilarArrays
 end
 
 @testset "detector_waveform broadcast shifts with units" begin
