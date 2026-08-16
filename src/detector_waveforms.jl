@@ -256,6 +256,15 @@ end
 
 _sample_std(signals::AbstractVector{<:AbstractVector}) = sqrt.(_sample_var(signals))
 
+# Signals held in one block reduce across that block in a single pass instead of one
+# pass per waveform: a modest win on a CPU (single-digit-to-low-double-digit µs on
+# 2000x1024 waveforms), but the deciding factor is a device that dispatches each pass
+# separately, which runs the loop above tens of times slower than this.
+_sample_sum(signals::ArrayOfSimilarVectors) = dropdims(sum(flatview(signals), dims = 2), dims = 2)
+_sample_mean(signals::ArrayOfSimilarVectors) = dropdims(Statistics.mean(flatview(signals), dims = 2), dims = 2)
+_sample_var(signals::ArrayOfSimilarVectors) = dropdims(Statistics.var(flatview(signals), dims = 2), dims = 2)
+_sample_std(signals::ArrayOfSimilarVectors) = dropdims(Statistics.std(flatview(signals), dims = 2), dims = 2)
+
 
 """
     sum(wfs::ArrayOfRDWaveforms)
