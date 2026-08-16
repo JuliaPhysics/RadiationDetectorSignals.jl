@@ -3,7 +3,7 @@
 using RadiationDetectorSignals
 using Test
 
-using ArraysOfArrays, FillArrays, Statistics, StructArrays, Unitful
+using ArraysOfArrays, FillArrays, JLArrays, Statistics, StructArrays, Unitful
 
 
 # A vector whose indices do not start at one, used to check that sample-wise
@@ -282,4 +282,41 @@ end
     @test sum(A) == RDWaveform(t, Int32[4, 6, 8, 10])
     @test mean(A) == RDWaveform(t, [2.0, 3.0, 4.0, 5.0])
     @test eltype(mean(A).signal) == Float64
+end
+
+# JLArrays.jl provides an AbstractArray backend that is not `Array`, with no special
+# casing for it anywhere in Base or this package's code — the same property a real GPU
+# array type (CuArray, ROCArray, ...) has. It stands in for one here so the
+# ArrayOfSimilarVectors/flatview-specialized paths (reductions and broadcasting) are
+# checked against a non-Array backend without requiring GPU hardware.
+jl_wfs(signals = REF_SIGNALS, time = REF_TIME) =
+    ArrayOfRDWaveforms((Fill(time, length(signals)), nestedview(JLArray(reduce(hcat, signals)))))
+
+@testset "detector_waveform generic array backend (JLArrays)" begin
+    wfs = jl_wfs()
+    ref = contiguous_wfs()  # identical data, Array-backed
+
+    @test wfs.signal isa ArrayOfSimilarVectors
+    @test flatview(wfs.signal) isa JLArray
+
+    @testset "reductions" begin
+        for f in (sum, mean, var, std)
+            @test Array(f(wfs).signal) == f(ref).signal
+        end
+    end
+
+    @testset "broadcasting preserves JLArray storage" begin
+        for (broadcasted, _) in BROADCAST_FORMS
+            result = broadcasted(wfs)
+            @test flatview(result.signal) isa JLArray
+            @test Array(flatview(result.signal)) == flatview(broadcasted(ref).signal)
+        end
+    end
+
+    @testset "per-waveform shifts preserve JLArray storage" begin
+        shifts = [100.0, 200.0, 300.0]
+        result = wfs .+ JLArray(shifts)
+        @test flatview(result.signal) isa JLArray
+        @test Array(flatview(result.signal)) == flatview((ref .+ shifts).signal)
+    end
 end
