@@ -284,6 +284,23 @@ end
     @test eltype(mean(A).signal) == Float64
 end
 
+@testset "detector_waveform ragged reductions with heterogeneous sample types" begin
+    # The accumulator's element type must come from every signal, not just the first:
+    # an Int32-typed accumulator sized to the first signal would throw an InexactError
+    # (or worse, silently round) on a later, non-integral Float64 signal.
+    A = ragged_wfs([Int32[1, 2, 3, 4], [1.5, 2.5, 3.5, 4.5]])
+
+    @test sum(A) == RDWaveform(REF_TIME, [2.5, 4.5, 6.5, 8.5])
+    @test eltype(sum(A).signal) == Float64
+    @test mean(A) == RDWaveform(REF_TIME, [1.25, 2.25, 3.25, 4.25])
+    @test var(A).signal ≈ fill(0.125, 4)
+    @test std(A).signal ≈ fill(sqrt(0.125), 4)
+
+    # Order shouldn't matter: the narrower type first is the case that used to break.
+    B = ragged_wfs([[1.5, 2.5, 3.5, 4.5], Int32[1, 2, 3, 4]])
+    @test sum(A) == sum(B)
+end
+
 # JLArrays.jl provides an AbstractArray backend that is not `Array`, with no special
 # casing for it anywhere in Base or this package's code — the same property a real GPU
 # array type (CuArray, ROCArray, ...) has. It stands in for one here so the

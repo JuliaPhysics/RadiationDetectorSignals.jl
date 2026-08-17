@@ -228,9 +228,14 @@ _sample_sum_eltype(::Type{T}) where {T<:Union{UInt8,UInt16,UInt32}} = UInt
 # Sample-wise reductions accumulate into a single preallocated buffer rather than
 # combining whole signal vectors pairwise: one allocation instead of one per
 # waveform, and independent of how the signals are stored.
+#
+# The accumulator's element type is promoted across every signal, not just the
+# first: a ragged collection need not have a single concrete sample type, and an
+# accumulator sized to only the first signal would fail on or truncate a later
+# signal of a wider type.
 function _sample_sum(signals::AbstractVector{<:AbstractVector})
-    first_signal = first(signals)
-    out = similar(first_signal, _sample_sum_eltype(eltype(first_signal)))
+    T = mapreduce(eltype, promote_type, signals)
+    out = similar(first(signals), _sample_sum_eltype(T))
     fill!(out, zero(eltype(out)))
     for signal in signals
         axes(signal) == axes(out) || throw(DimensionMismatch("Waveform signals must all have the same axes: $(axes(signal)) vs $(axes(out))"))
