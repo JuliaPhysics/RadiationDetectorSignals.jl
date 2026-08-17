@@ -91,7 +91,9 @@ _shift_op(f, x, a) = f(_matching_samples(x, a), _matching_shift(a, eltype(x)))
 
 Shift every sample of a waveform by `a`, keeping its time axis.
 
-A plain number shifts the samples in whatever unit they carry.
+Whichever of `wf`'s samples and `a` carries no unit takes on the other's: a
+plain number shifts unitful samples in their own unit, and a unitful `a`
+gives plain samples that unit. If neither carries a unit, the shift is plain.
 """
 Base.:(+)(wf::RDWaveform, a::RealQuantity) =
     RDWaveform(wf.time, _shift_op((x, s) -> x .+ s, wf.signal, a))
@@ -102,7 +104,9 @@ Base.:(+)(a::RealQuantity, wf::RDWaveform) = wf + a
 
 Shift every sample of a waveform by `-a`, keeping its time axis.
 
-A plain number shifts the samples in whatever unit they carry.
+Whichever of `wf`'s samples and `a` carries no unit takes on the other's: a
+plain number shifts unitful samples in their own unit, and a unitful `a`
+gives plain samples that unit. If neither carries a unit, the shift is plain.
 """
 Base.:(-)(wf::RDWaveform, a::RealQuantity) =
     RDWaveform(wf.time, _shift_op((x, s) -> x .- s, wf.signal, a))
@@ -112,7 +116,9 @@ Base.:(-)(wf::RDWaveform, a::RealQuantity) =
 
 Subtract every sample of a waveform from `a`, keeping its time axis.
 
-A plain number is taken in whatever unit the samples carry.
+Whichever of `wf`'s samples and `a` carries no unit takes on the other's: a
+plain `a` is taken in the samples' own unit, and a unitful `a` gives plain
+samples that unit. If neither carries a unit, the result is plain.
 """
 Base.:(-)(a::RealQuantity, wf::RDWaveform) =
     RDWaveform(wf.time, _shift_op((x, s) -> s .- x, wf.signal, a))
