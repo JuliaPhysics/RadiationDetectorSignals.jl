@@ -284,8 +284,9 @@ _sample_std(signals::ArrayOfSimilarVectors) = dropdims(Statistics.std(flatview(s
 Sample-wise sum over all waveforms in `wfs`, as a single [`RDWaveform`](@ref).
 
 All waveforms must share the same time axis, which becomes the time axis of the
-result; throws an `ArgumentError` otherwise. Integer samples narrower than `Int`
-accumulate in `Int` to avoid overflow.
+result; throws an `ArgumentError` otherwise. Signals themselves must share the
+same axes; throws a `DimensionMismatch` otherwise. Integer samples narrower
+than `Int` accumulate in `Int` to avoid overflow.
 """
 Base.sum(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), _sample_sum(wfs.signal))
 
@@ -295,7 +296,8 @@ Base.sum(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), _sam
 Sample-wise mean over all waveforms in `wfs`, as a single [`RDWaveform`](@ref).
 
 All waveforms must share the same time axis, which becomes the time axis of the
-result; throws an `ArgumentError` otherwise.
+result; throws an `ArgumentError` otherwise. Signals themselves must share the
+same axes; throws a `DimensionMismatch` otherwise.
 """
 Statistics.mean(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), _sample_mean(wfs.signal))
 
@@ -306,7 +308,8 @@ Sample-wise variance over all waveforms in `wfs`, as a single [`RDWaveform`](@re
 
 Uses the Bessel-corrected denominator `length(wfs) - 1`. All waveforms must share
 the same time axis, which becomes the time axis of the result; throws an
-`ArgumentError` otherwise.
+`ArgumentError` otherwise. Signals themselves must share the same axes; throws
+a `DimensionMismatch` otherwise.
 """
 Statistics.var(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), _sample_var(wfs.signal))
 
@@ -318,7 +321,8 @@ Sample-wise standard deviation over all waveforms in `wfs`, as a single
 
 Uses the Bessel-corrected denominator `length(wfs) - 1`. All waveforms must share
 the same time axis, which becomes the time axis of the result; throws an
-`ArgumentError` otherwise.
+`ArgumentError` otherwise. Signals themselves must share the same axes; throws
+a `DimensionMismatch` otherwise.
 """
 Statistics.std(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), _sample_std(wfs.signal))
 
