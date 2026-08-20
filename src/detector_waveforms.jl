@@ -72,18 +72,16 @@ Negate a waveform's samples, keeping its time axis.
 """
 Base.:(-)(a::RDWaveform) = RDWaveform(a.time, -a.signal)
 
-# Shifting mixes samples and a shift amount, either of which may carry a unit.
-# Whichever side has none is taken to be expressed in the unit of the other, so
-# unitful samples accept a plain shift and plain samples accept a unitful one.
+# A plain shift amount is interpreted in the samples' own unit, if they have one;
+# a unitful shift amount requires the samples to already carry a (compatible)
+# unit, the same as adding any two Unitful quantities. There is no reverse
+# inference: a plain waveform plus a unitful shift is a Unitful.DimensionError,
+# not a promotion of the waveform's own samples to that unit.
 _matching_shift(a, ::Type) = a
 _matching_shift(a::Real, ::Type{T}) where {T<:Quantity} = a * unit(T)
 _matching_shift(a::AbstractArray{<:Real}, ::Type{T}) where {T<:Quantity} = a * unit(T)
 
-_matching_samples(x, a) = x
-_matching_samples(x::AbstractArray{<:Real}, a::Quantity) = x * unit(a)
-_matching_samples(x::AbstractArray{<:Real}, a::AbstractArray{<:Quantity}) = x * unit(eltype(a))
-
-_shift_op(f, x, a) = f(_matching_samples(x, a), _matching_shift(a, eltype(x)))
+_shift_op(f, x, a) = f(x, _matching_shift(a, eltype(x)))
 
 """
     +(wf::RDWaveform, a::RealQuantity)
@@ -91,9 +89,10 @@ _shift_op(f, x, a) = f(_matching_samples(x, a), _matching_shift(a, eltype(x)))
 
 Shift every sample of a waveform by `a`, keeping its time axis.
 
-Whichever of `wf`'s samples and `a` carries no unit takes on the other's: a
-plain number shifts unitful samples in their own unit, and a unitful `a`
-gives plain samples that unit. If neither carries a unit, the shift is plain.
+A plain `a` is interpreted in the samples' own unit, if they have one. A
+unitful `a` requires the samples to already carry a (compatible) unit;
+shifting plain samples by a unitful amount throws a `Unitful.DimensionError`
+rather than giving the samples that unit.
 """
 Base.:(+)(wf::RDWaveform, a::RealQuantity) =
     RDWaveform(wf.time, _shift_op((x, s) -> x .+ s, wf.signal, a))
@@ -104,9 +103,10 @@ Base.:(+)(a::RealQuantity, wf::RDWaveform) = wf + a
 
 Shift every sample of a waveform by `-a`, keeping its time axis.
 
-Whichever of `wf`'s samples and `a` carries no unit takes on the other's: a
-plain number shifts unitful samples in their own unit, and a unitful `a`
-gives plain samples that unit. If neither carries a unit, the shift is plain.
+A plain `a` is interpreted in the samples' own unit, if they have one. A
+unitful `a` requires the samples to already carry a (compatible) unit;
+shifting plain samples by a unitful amount throws a `Unitful.DimensionError`
+rather than giving the samples that unit.
 """
 Base.:(-)(wf::RDWaveform, a::RealQuantity) =
     RDWaveform(wf.time, _shift_op((x, s) -> x .- s, wf.signal, a))
@@ -116,9 +116,10 @@ Base.:(-)(wf::RDWaveform, a::RealQuantity) =
 
 Subtract every sample of a waveform from `a`, keeping its time axis.
 
-Whichever of `wf`'s samples and `a` carries no unit takes on the other's: a
-plain `a` is taken in the samples' own unit, and a unitful `a` gives plain
-samples that unit. If neither carries a unit, the result is plain.
+A plain `a` is interpreted in the samples' own unit, if they have one. A
+unitful `a` requires the samples to already carry a (compatible) unit;
+subtracting plain samples from a unitful `a` throws a `Unitful.DimensionError`
+rather than giving the samples that unit.
 """
 Base.:(-)(a::RealQuantity, wf::RDWaveform) =
     RDWaveform(wf.time, _shift_op((x, s) -> s .- x, wf.signal, a))

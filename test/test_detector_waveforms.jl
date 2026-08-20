@@ -131,12 +131,14 @@ end
     @test (wf + 2.5).time == t
     @test wf + 2.5 - 2.5 ≈ wf
 
-    # Whichever side carries no unit is taken to be expressed in the unit of the other.
+    # A plain shift is interpreted in unitful samples' own unit.
     @test (wf_u + 2.5u"eV").signal == s * u"eV" .+ 2.5u"eV"
     @test (wf_u + 2.5).signal == s * u"eV" .+ 2.5u"eV"
-    @test (wf + 2.5u"eV").signal == s * u"eV" .+ 2.5u"eV"
-    @test (2.5u"eV" - wf).signal == 2.5u"eV" .- s * u"eV"
     @test wf_u + 2 == wf_u + 2u"eV"
+
+    # Plain samples do not adopt a unitful shift's unit: no reverse inference.
+    @test_throws Unitful.DimensionError wf + 2.5u"eV"
+    @test_throws Unitful.DimensionError 2.5u"eV" - wf
 end
 
 @testset "detector_waveform reductions" begin
@@ -260,12 +262,13 @@ end
     @test all(i -> (u_wfs .+ u_wfs)[i] == u_wfs[i] + u_wfs[i], eachindex(u_wfs))
     @test (2.0 .* u_wfs).signal isa ArrayOfSimilarArrays
 
-    # Whichever side carries no unit takes the unit of the other, scalar or per waveform.
+    # A plain shift, scalar or per waveform, is interpreted in unitful samples' own unit.
     @test all(i -> (u_wfs .+ 10.0)[i] == u_wfs[i] + 10.0u"eV", eachindex(u_wfs))
-    @test all(i -> (plain .+ 10.0u"eV")[i] == plain[i] + 10.0u"eV", eachindex(plain))
     @test all(i -> (u_wfs .- shifts)[i] == u_wfs[i] - shifts[i] * u"eV", eachindex(u_wfs))
-    @test all(i -> (plain .- shifts * u"eV")[i] == plain[i] - shifts[i] * u"eV", eachindex(plain))
-    @test (plain .- shifts * u"eV").signal isa ArrayOfSimilarArrays
+
+    # Plain samples do not adopt a unitful shift's unit: no reverse inference.
+    @test_throws Unitful.DimensionError plain .+ 10.0u"eV"
+    @test_throws Unitful.DimensionError plain .- shifts * u"eV"
 end
 
 @testset "detector_waveform arithmetic with mixed sample types" begin
