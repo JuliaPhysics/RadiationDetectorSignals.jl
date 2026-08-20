@@ -3,39 +3,7 @@
 using RadiationDetectorSignals
 using Test
 
-using ArraysOfArrays, FillArrays, JLArrays, Statistics, StructArrays, Unitful
-
-
-# A vector whose indices do not start at one, used to check that sample-wise
-# reductions follow the indices of their inputs instead of assuming 1-based signals.
-module OffsetSignals
-    export ShiftedVector
-
-    struct ShiftedVector{T,P<:AbstractVector{T}} <: AbstractVector{T}
-        parent::P
-        offset::Int
-    end
-
-    Base.size(v::ShiftedVector) = size(v.parent)
-    Base.axes(v::ShiftedVector) =
-        (Base.IdentityUnitRange(firstindex(v.parent) + v.offset : lastindex(v.parent) + v.offset),)
-    Base.IndexStyle(::Type{<:ShiftedVector}) = IndexLinear()
-    Base.@propagate_inbounds Base.getindex(v::ShiftedVector, i::Int) = v.parent[i - v.offset]
-    Base.@propagate_inbounds Base.setindex!(v::ShiftedVector, x, i::Int) = (v.parent[i - v.offset] = x; v)
-    Base.similar(v::ShiftedVector, ::Type{T}) where {T} = ShiftedVector(similar(v.parent, T), v.offset)
-
-    # Keep broadcast results in the wrapper so the offset axes survive.
-    struct ShiftedStyle <: Broadcast.AbstractArrayStyle{1} end
-    Base.BroadcastStyle(::Type{<:ShiftedVector}) = ShiftedStyle()
-    ShiftedStyle(::Val{0}) = ShiftedStyle()
-    ShiftedStyle(::Val{1}) = ShiftedStyle()
-    function Base.similar(bc::Broadcast.Broadcasted{ShiftedStyle}, ::Type{T}) where {T}
-        ax = only(axes(bc))
-        ShiftedVector(similar(Array{T}, length(ax)), first(ax) - 1)
-    end
-end
-
-using .OffsetSignals: ShiftedVector
+using ArraysOfArrays, FillArrays, JLArrays, OffsetArrays, Statistics, StructArrays, Unitful
 
 
 @testset "detector_waveforms" begin
@@ -187,7 +155,7 @@ end
 end
 
 @testset "detector_waveform reductions honor signal axes" begin
-    signals = [ShiftedVector(s, 2) for s in REF_SIGNALS]
+    signals = [OffsetVector(s, 2) for s in REF_SIGNALS]
     A = ArrayOfRDWaveforms((Fill(REF_TIME, length(signals)), signals))
     expected_axes = axes(first(signals))
 
@@ -196,7 +164,7 @@ end
     @test collect(var(A).signal) == [4.0, 16.0, 16.0, 64.0]
 
     mismatched = ArrayOfRDWaveforms((Fill(REF_TIME, 2),
-        [ShiftedVector(REF_SIGNALS[1], 2), ShiftedVector(REF_SIGNALS[1], 0)]))
+        [OffsetVector(REF_SIGNALS[1], 2), OffsetVector(REF_SIGNALS[1], 0)]))
     @test_throws DimensionMismatch sum(mismatched)
     @test_throws DimensionMismatch var(mismatched)
 end
