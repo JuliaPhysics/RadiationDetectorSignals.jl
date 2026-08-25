@@ -59,6 +59,8 @@ contiguous_wfs(signals = REF_SIGNALS, time = REF_TIME) =
     ArrayOfRDWaveforms((Fill(time, length(signals)), nestedview(reduce(hcat, signals))))
 ragged_wfs(signals = REF_SIGNALS, time = REF_TIME) =
     ArrayOfRDWaveforms((Fill(time, length(signals)), VectorOfVectors(signals)))
+nested_wfs(signals = REF_SIGNALS, time = REF_TIME) =
+    ArrayOfRDWaveforms((Fill(time, length(signals)), collect(signals)))
 
 
 @testset "detector_waveform arithmetic" begin
@@ -111,13 +113,14 @@ end
 
 @testset "detector_waveform reductions" begin
     # Identical results whether the samples are one block or separately allocated.
-    for wfs in (contiguous_wfs(), ragged_wfs())
+    for wfs in (contiguous_wfs(), ragged_wfs(), nested_wfs())
         @test sum(wfs) == RDWaveform(REF_TIME, [9.0, 18.0, 24.0, 48.0])
         @test mean(wfs) == RDWaveform(REF_TIME, [3.0, 6.0, 8.0, 16.0])
         @test var(wfs) == RDWaveform(REF_TIME, [4.0, 16.0, 16.0, 64.0])
         @test std(wfs) == RDWaveform(REF_TIME, [2.0, 4.0, 4.0, 8.0])
     end
     @test contiguous_wfs().signal isa ArrayOfSimilarArrays
+    @test ragged_wfs().signal isa VectorOfVectors
 
     # Time axes held per waveform rather than shared as a Fill.
     per_row = ArrayOfRDWaveforms((fill(REF_TIME, 3), VectorOfVectors(REF_SIGNALS)))
@@ -147,11 +150,32 @@ end
 
 @testset "detector_waveform sum widens narrow integers" begin
     big = typemax(Int32) ÷ 2
-    A = ragged_wfs([Int32[big, 1, 2, 3] for _ in 1:3])
+    signals = [Int32[big, 1, 2, 3] for _ in 1:3]
 
-    @test eltype(sum(A).signal) === Int
-    @test sum(A).signal[1] == 3 * Int(big)
-    @test eltype(mean(A).signal) === Float64
+    for A in (contiguous_wfs(signals), ragged_wfs(signals), nested_wfs(signals))
+        @test eltype(sum(A).signal) === Int
+        @test sum(A).signal[1] == 3 * Int(big)
+        @test eltype(mean(A).signal) === Float64
+        @test mean(A).signal[1] == Float64(big)
+    end
+end
+
+@testset "detector_waveform reductions over a flat buffer are copy-free" begin
+    signals = VectorOfVectors(deepcopy(REF_SIGNALS))
+    A = ArrayOfRDWaveforms((Fill(REF_TIME, length(signals)), signals))
+    @test sum(A).signal == [9.0, 18.0, 24.0, 48.0]
+
+    # Equal-length elements reduce over the underlying buffer itself.
+    flatview(signals)[1] = 11.0
+    @test sum(A).signal == [19.0, 18.0, 24.0, 48.0]
+end
+
+@testset "detector_waveform reductions reject ragged signals" begin
+    signals = VectorOfVectors([[1.0, 2.0], [1.0, 2.0, 3.0]])
+    A = ArrayOfRDWaveforms((Fill(REF_TIME, 2), signals))
+
+    @test_throws DimensionMismatch sum(A)
+    @test_throws DimensionMismatch var(A)
 end
 
 @testset "detector_waveform reductions honor signal axes" begin

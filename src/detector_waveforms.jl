@@ -159,17 +159,30 @@ end
 # consistent with `sum` as well, instead of enumerating types here.
 _sample_sum_eltype(::Type{T}) where {T} = Base.promote_op(Base.add_sum, T, T)
 
-# Sample-wise reductions accumulate into a single preallocated buffer rather than
-# combining whole signal vectors pairwise: one allocation instead of one per
-# waveform, and independent of how the signals are stored.
+# A matrix view of the samples, one column per waveform, sharing the signals' own
+# storage; `nothing` when the signals are not one contiguous block of equal-length
+# vectors. Reducing over the whole block in a single pass keeps the work on whatever
+# device holds the samples, instead of dispatching one pass per waveform.
+_sample_matrix(signals::ArrayOfSimilarVectors) = flatview(signals)
+_sample_matrix(signals::AbstractVector{<:AbstractVector}) = nothing
+
+# A VectorOfVectors keeps its elements in one flat buffer, so equal-length elements
+# reshape into that matrix without copying. Ragged ones have no matrix form.
+function _sample_matrix(signals::VectorOfVectors)
+    isempty(signals) && return nothing
+    n = length(first(signals))
+    all(signal -> length(signal) == n, signals) || return nothing
+    return reshape(flatview(signals), n, length(signals))
+end
+
+# Signals with no contiguous block behind them accumulate into a single preallocated
+# buffer: one allocation instead of one per waveform.
 #
-# The accumulator's element type is promoted across every signal, not just the
-# first: a ragged collection need not have a single concrete sample type, and an
-# accumulator sized to only the first signal would fail on or truncate a later
-# signal of a wider type.
-function _sample_sum(signals::AbstractVector{<:AbstractVector})
-    T = mapreduce(eltype, promote_type, signals)
-    out = similar(first(signals), _sample_sum_eltype(T))
+# The accumulator's element type follows `sum`, so narrow integer samples cannot
+# overflow. Adding whole sample vectors would not widen them: `Base.add_sum` widens
+# narrow integers, but `Vector{Int32} + Vector{Int32}` is a `Vector{Int32}`.
+function _nested_sample_sum(signals::AbstractVector{<:AbstractVector})
+    out = similar(first(signals), _sample_sum_eltype(eltype(eltype(signals))))
     fill!(out, zero(eltype(out)))
     for signal in signals
         axes(signal) == axes(out) || throw(DimensionMismatch("Waveform signals must all have the same axes: $(axes(signal)) vs $(axes(out))"))
@@ -178,31 +191,27 @@ function _sample_sum(signals::AbstractVector{<:AbstractVector})
     return out
 end
 
-_sample_mean(signals::AbstractVector{<:AbstractVector}) = _sample_sum(signals) ./ length(signals)
+function _sample_sum(signals::AbstractVector{<:AbstractVector})
+    M = _sample_matrix(signals)
+    isnothing(M) || return dropdims(sum(M, dims = 2), dims = 2)
+    return _nested_sample_sum(signals)
+end
 
-# Two-pass variance: numerically better behaved than accumulating raw squares, and
-# the fused broadcast below allocates no temporary per waveform.
+function _sample_mean(signals::AbstractVector{<:AbstractVector})
+    M = _sample_matrix(signals)
+    isnothing(M) || return dropdims(Statistics.mean(M, dims = 2), dims = 2)
+    return _sample_sum(signals) ./ length(signals)
+end
+
 function _sample_var(signals::AbstractVector{<:AbstractVector})
-    m = _sample_mean(signals)
-    acc = similar(m, typeof(abs2(zero(eltype(m)))))
-    fill!(acc, zero(eltype(acc)))
-    for signal in signals
-        axes(signal) == axes(acc) || throw(DimensionMismatch("Waveform signals must all have the same axes: $(axes(signal)) vs $(axes(acc))"))
-        acc .+= abs2.(signal .- m)
-    end
-    return acc ./ (length(signals) - 1)
+    M = _sample_matrix(signals)
+    isnothing(M) || return dropdims(Statistics.var(M, dims = 2), dims = 2)
+    # Statistics reduces vector elements sample-wise; supplying the mean keeps the
+    # accumulator that narrow integer samples need.
+    return Statistics.varm(signals, _sample_mean(signals))
 end
 
 _sample_std(signals::AbstractVector{<:AbstractVector}) = sqrt.(_sample_var(signals))
-
-# Signals held in one block reduce across that block in a single pass instead of one
-# pass per waveform: a modest win on a CPU (single-digit-to-low-double-digit µs on
-# 2000x1024 waveforms), but the deciding factor is a device that dispatches each pass
-# separately, which runs the loop above tens of times slower than this.
-_sample_sum(signals::ArrayOfSimilarVectors) = dropdims(sum(flatview(signals), dims = 2), dims = 2)
-_sample_mean(signals::ArrayOfSimilarVectors) = dropdims(Statistics.mean(flatview(signals), dims = 2), dims = 2)
-_sample_var(signals::ArrayOfSimilarVectors) = dropdims(Statistics.var(flatview(signals), dims = 2), dims = 2)
-_sample_std(signals::ArrayOfSimilarVectors) = dropdims(Statistics.std(flatview(signals), dims = 2), dims = 2)
 
 
 """
