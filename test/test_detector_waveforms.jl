@@ -148,15 +148,22 @@ end
     @test std(A).signal ≈ vec(std(reference, dims = 2))
 end
 
+# Accumulation widens sample types narrower than `Int`, as `sum` does. `Int32` is
+# narrower only where `Int` is 64 bits; on a 32-bit platform it is `Int` itself and
+# `sum` does not widen it either.
 @testset "detector_waveform sum widens narrow integers" begin
-    big = typemax(Int32) ÷ 2
-    signals = [Int32[big, 1, 2, 3] for _ in 1:3]
+    narrow_types = Sys.WORD_SIZE > 32 ? (Int16, Int32) : (Int16,)
 
-    for A in (contiguous_wfs(signals), ragged_wfs(signals), nested_wfs(signals))
-        @test eltype(sum(A).signal) === Int
-        @test sum(A).signal[1] == 3 * Int(big)
-        @test eltype(mean(A).signal) === Float64
-        @test mean(A).signal[1] == Float64(big)
+    for T in narrow_types
+        big = T(typemax(T) ÷ 2)
+        signals = [T[big, 1, 2, 3] for _ in 1:3]
+
+        for A in (contiguous_wfs(signals), ragged_wfs(signals), nested_wfs(signals))
+            @test eltype(sum(A).signal) === Int
+            @test sum(A).signal[1] == 3 * Int(big)
+            @test eltype(mean(A).signal) === Float64
+            @test mean(A).signal[1] == Float64(big)
+        end
     end
 end
 
