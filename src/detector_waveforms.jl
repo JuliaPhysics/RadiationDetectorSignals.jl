@@ -152,12 +152,12 @@ function _common_time_axis(X::AbstractArray)
 end
 
 
-# Accumulator element type for sample-wise sums. Small integers widen to Int, as
-# Base.sum does for plain arrays: detector samples are commonly Int32, and summing
-# thousands of them in Int32 overflows silently.
-_sample_sum_eltype(::Type{T}) where {T} = typeof(zero(T) + zero(T))
-_sample_sum_eltype(::Type{T}) where {T<:Union{Int8,Int16,Int32}} = Int
-_sample_sum_eltype(::Type{T}) where {T<:Union{UInt8,UInt16,UInt32}} = UInt
+# Accumulator element type for sample-wise sums: whatever `sum` returns for a vector
+# of such samples. `Base.add_sum` is the reduction operator `sum` uses, and widens
+# narrow integers because detector samples are commonly Int32 and summing thousands
+# of them in Int32 overflows silently. Deferring to it keeps every other sample type
+# consistent with `sum` as well, instead of enumerating types here.
+_sample_sum_eltype(::Type{T}) where {T} = Base.promote_op(Base.add_sum, T, T)
 
 # Sample-wise reductions accumulate into a single preallocated buffer rather than
 # combining whole signal vectors pairwise: one allocation instead of one per
