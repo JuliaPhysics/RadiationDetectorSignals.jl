@@ -260,6 +260,33 @@ end
     @test all(i -> (2.0 .* nested_wfs())[i] == 2.0 * nested_wfs()[i], eachindex(nested_wfs()))
 end
 
+# Each operation in a composed expression materializes in turn rather than fusing,
+# so expressions combining several of them are checked against the same computation
+# applied waveform by waveform.
+@testset "detector_waveform composed broadcast expressions" begin
+    shifts = [100.0, 200.0, 300.0]
+
+    for wfs in (contiguous_wfs(), ragged_wfs(), nested_wfs())
+        composed = [(@. 2.0 * wfs + 10.0)          => (wf, s) -> 2.0 * wf + 10.0,
+                    (@. wfs / 2.0 - wfs)           => (wf, s) -> wf / 2.0 - wf,
+                    (@. -wfs + 3.0 * wfs)          => (wf, s) -> -wf + 3.0 * wf,
+                    (@. 10.0 - 2.0 * wfs)          => (wf, s) -> 10.0 - 2.0 * wf,
+                    (@. 2.0 * wfs + shifts)        => (wf, s) -> 2.0 * wf + s,
+                    (@. wfs - shifts + wfs)        => (wf, s) -> wf - s + wf,
+                    (@. (wfs + wfs) / 2.0 - shifts) => (wf, s) -> (wf + wf) / 2.0 - s]
+        for (result, elementwise) in composed
+            @test all(i -> result[i] == elementwise(wfs[i], shifts[i]), eachindex(wfs))
+            @test result.time == wfs.time
+        end
+    end
+
+    # Equal-length signals stay in one block across every stage of the expression.
+    for wfs in (contiguous_wfs(), ragged_wfs())
+        @test (@. 2.0 * wfs + 10.0).signal isa ArrayOfSimilarArrays
+        @test (@. wfs - shifts + wfs).signal isa ArrayOfSimilarArrays
+    end
+end
+
 @testset "detector_waveform broadcasting with units" begin
     u_wfs = contiguous_wfs([s * u"eV" for s in REF_SIGNALS], REF_TIME * u"ns")
     plain = contiguous_wfs()
@@ -338,6 +365,19 @@ jl_wfs(signals = REF_SIGNALS, time = REF_TIME) =
             result = broadcasted(wfs)
             @test flatview(result.signal) isa JLArray
             @test Array(flatview(result.signal)) == flatview(broadcasted(ref).signal)
+        end
+    end
+
+    @testset "composed broadcast expressions preserve JLArray storage" begin
+        shifts = [100.0, 200.0, 300.0]
+        jl_shifts = JLArray(shifts)
+
+        results = [(@. 2.0 * wfs + 10.0)        => (@. 2.0 * ref + 10.0),
+                   (@. -wfs + 3.0 * wfs)        => (@. -ref + 3.0 * ref),
+                   (@. wfs - jl_shifts + wfs)   => (@. ref - shifts + ref)]
+        for (result, expected) in results
+            @test flatview(result.signal) isa JLArray
+            @test Array(flatview(result.signal)) == flatview(expected.signal)
         end
     end
 
