@@ -19,6 +19,16 @@ Fields:
 * `time`: time axis, typically a range
 * `signal`: detector signal values
 
+Waveforms support arithmetic, always keeping the time axis of the operands:
+`+`, `-` and unary `-` between two waveforms that share a time axis, scalar
+`*`, `/` and `\\`, and `+`/`-` with a scalar to shift every sample. Combining
+waveforms with different time axes throws an `ArgumentError`.
+
+A plain shift amount is interpreted in the samples' own unit, if they have
+one. A unitful shift amount requires the samples to already carry a compatible
+unit; shifting plain samples by a unitful amount throws a
+`Unitful.DimensionError` rather than giving the samples that unit.
+
 Use [`ArrayOfRDWaveforms`](@ref) for arrays of `RDWaveform` that have a
 compact memory layout.
 """
@@ -41,35 +51,16 @@ Base.isapprox(a::RDWaveform, b::RDWaveform; kwargs...) = isapprox(a.time, b.time
 
 Base.float(wf::RDWaveform) = RDWaveform(float(wf.time), float(wf.signal))
 
-"""
-    +(a::RDWaveform, b::RDWaveform)
-
-Sample-wise sum of two waveforms that share the same time axis.
-
-Throws an `ArgumentError` if `a` and `b` have different time axes.
-"""
 function Base.:(+)(a::RDWaveform, b::RDWaveform)
     a.time == b.time || throw(ArgumentError("Can't add RDWaveform with different time axes"))
     RDWaveform(a.time, a.signal + b.signal)
 end
 
-"""
-    -(a::RDWaveform, b::RDWaveform)
-
-Sample-wise difference of two waveforms that share the same time axis.
-
-Throws an `ArgumentError` if `a` and `b` have different time axes.
-"""
 function Base.:(-)(a::RDWaveform, b::RDWaveform)
     a.time == b.time || throw(ArgumentError("Can't subtract RDWaveform with different time axes"))
     RDWaveform(a.time, a.signal - b.signal)
 end
 
-"""
-    -(a::RDWaveform)
-
-Negate a waveform's samples, keeping its time axis.
-"""
 Base.:(-)(a::RDWaveform) = RDWaveform(a.time, -a.signal)
 
 # A plain shift amount is interpreted in the samples' own unit, if they have one;
@@ -83,70 +74,21 @@ _matching_shift(a::AbstractArray{<:Real}, ::Type{T}) where {T<:Quantity} = a * u
 
 _shift_op(f, x, a) = f(x, _matching_shift(a, eltype(x)))
 
-"""
-    +(wf::RDWaveform, a::RealQuantity)
-    +(a::RealQuantity, wf::RDWaveform)
-
-Shift every sample of a waveform by `a`, keeping its time axis.
-
-A plain `a` is interpreted in the samples' own unit, if they have one. A
-unitful `a` requires the samples to already carry a (compatible) unit;
-shifting plain samples by a unitful amount throws a `Unitful.DimensionError`
-rather than giving the samples that unit.
-"""
 Base.:(+)(wf::RDWaveform, a::RealQuantity) =
     RDWaveform(wf.time, _shift_op((x, s) -> x .+ s, wf.signal, a))
 Base.:(+)(a::RealQuantity, wf::RDWaveform) = wf + a
 
-"""
-    -(wf::RDWaveform, a::RealQuantity)
-
-Shift every sample of a waveform by `-a`, keeping its time axis.
-
-A plain `a` is interpreted in the samples' own unit, if they have one. A
-unitful `a` requires the samples to already carry a (compatible) unit;
-shifting plain samples by a unitful amount throws a `Unitful.DimensionError`
-rather than giving the samples that unit.
-"""
 Base.:(-)(wf::RDWaveform, a::RealQuantity) =
     RDWaveform(wf.time, _shift_op((x, s) -> x .- s, wf.signal, a))
 
-"""
-    -(a::RealQuantity, wf::RDWaveform)
-
-Subtract every sample of a waveform from `a`, keeping its time axis.
-
-A plain `a` is interpreted in the samples' own unit, if they have one. A
-unitful `a` requires the samples to already carry a (compatible) unit;
-subtracting plain samples from a unitful `a` throws a `Unitful.DimensionError`
-rather than giving the samples that unit.
-"""
 Base.:(-)(a::RealQuantity, wf::RDWaveform) =
     RDWaveform(wf.time, _shift_op((x, s) -> s .- x, wf.signal, a))
 
-"""
-    *(a::Real, b::RDWaveform)
-    *(a::RDWaveform, b::Real)
-
-Scale a waveform's samples by a scalar, keeping its time axis.
-"""
 Base.:(*)(a::Real, b::RDWaveform) = RDWaveform(b.time, a * b.signal)
 Base.:(*)(a::RDWaveform, b::Real) = b * a
 
-"""
-    /(a::RDWaveform, b::Real)
-
-Divide a waveform's samples by a scalar, keeping its time axis.
-"""
 Base.:(/)(a::RDWaveform, b::Real) = a * inv(b)
 
-"""
-    \\(a::Real, b::RDWaveform)
-
-Divide a waveform's samples by a scalar, keeping its time axis.
-
-Equivalent to `b / a`.
-"""
 Base.:(\)(a::Real, b::RDWaveform) = b / a
 
 # ToDo: function for waveform duration. Use IntervalSets.duration?
