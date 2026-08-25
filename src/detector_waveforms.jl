@@ -161,7 +161,7 @@ _sample_sum_eltype(::Type{T}) where {T} = Base.promote_op(Base.add_sum, T, T)
 
 # A matrix view of the samples, one column per waveform, sharing the signals' own
 # storage; `nothing` when the signals are not one contiguous block of equal-length
-# vectors. Reducing over the whole block in a single pass keeps the work on whatever
+# vectors. Operating on the whole block in a single pass keeps the work on whatever
 # device holds the samples, instead of dispatching one pass per waveform.
 _sample_matrix(signals::ArrayOfSimilarVectors) = flatview(signals)
 _sample_matrix(signals::AbstractVector{<:AbstractVector}) = nothing
@@ -268,14 +268,20 @@ Statistics.std(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time)
 # contiguously stay contiguous instead of being rebuilt as a vector of separately
 # allocated vectors. Broadcast fusion is given up in exchange: an expression like
 # `2 .* wfs .+ wfs` evaluates in two steps rather than one.
+#
+# Signals with no contiguous block behind them are mapped over waveform by waveform.
 
-_broadcast_signals(f, signals::ArrayOfSimilarVectors) = nestedview(f(flatview(signals)))
-_broadcast_signals(f, signals::AbstractVector{<:AbstractVector}) = map(f, signals)
+function _broadcast_signals(f, signals::AbstractVector{<:AbstractVector})
+    M = _sample_matrix(signals)
+    isnothing(M) && return map(f, signals)
+    return nestedview(f(M))
+end
 
-_broadcast_signals(f, a::ArrayOfSimilarVectors, b::ArrayOfSimilarVectors) =
-    nestedview(f(flatview(a), flatview(b)))
-_broadcast_signals(f, a::AbstractVector{<:AbstractVector}, b::AbstractVector{<:AbstractVector}) =
-    map(f, a, b)
+function _broadcast_signals(f, a::AbstractVector{<:AbstractVector}, b::AbstractVector{<:AbstractVector})
+    Ma, Mb = _sample_matrix(a), _sample_matrix(b)
+    (isnothing(Ma) || isnothing(Mb)) && return map(f, a, b)
+    return nestedview(f(Ma, Mb))
+end
 
 _scaled_waveforms(wfs::ArrayOfRDWaveforms, f) =
     ArrayOfRDWaveforms((wfs.time, _broadcast_signals(f, wfs.signal)))
@@ -314,10 +320,11 @@ Base.Broadcast.broadcasted(::typeof(-), a::RealQuantity, wfs::ArrayOfRDWaveforms
 
 # One shift per waveform: the shifts broadcast along the sample axis, so
 # contiguously stored signals are shifted in a single operation.
-_shift_signals(f, signals::ArrayOfSimilarVectors, a::AbstractVector) =
-    nestedview(f(flatview(signals), transpose(a)))
-_shift_signals(f, signals::AbstractVector{<:AbstractVector}, a::AbstractVector) =
-    map(f, signals, a)
+function _shift_signals(f, signals::AbstractVector{<:AbstractVector}, a::AbstractVector)
+    M = _sample_matrix(signals)
+    isnothing(M) && return map(f, signals, a)
+    return nestedview(f(M, transpose(a)))
+end
 
 function _shifted_waveforms(wfs::ArrayOfRDWaveforms, a::AbstractVector{<:RealQuantity}, f)
     axes(a) == axes(wfs) || throw(DimensionMismatch("Need one shift per waveform: $(axes(a)) vs $(axes(wfs))"))

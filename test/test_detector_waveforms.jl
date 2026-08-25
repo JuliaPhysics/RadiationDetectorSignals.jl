@@ -245,6 +245,21 @@ end
     @test_throws DimensionMismatch wfs .+ [1.0, 2.0]
 end
 
+@testset "detector_waveform broadcasting keeps signals in one block" begin
+    shifts = [100.0, 200.0, 300.0]
+    # Equal-length signals stay in one block whether or not they started in one.
+    for wfs in (contiguous_wfs(), ragged_wfs())
+        for (broadcasted, _) in BROADCAST_FORMS
+            @test broadcasted(wfs).signal isa ArrayOfSimilarArrays
+        end
+        @test (wfs .+ shifts).signal isa ArrayOfSimilarArrays
+    end
+
+    # Signals with no block behind them are mapped over waveform by waveform.
+    @test !((2.0 .* nested_wfs()).signal isa ArrayOfSimilarArrays)
+    @test all(i -> (2.0 .* nested_wfs())[i] == 2.0 * nested_wfs()[i], eachindex(nested_wfs()))
+end
+
 @testset "detector_waveform broadcasting with units" begin
     u_wfs = contiguous_wfs([s * u"eV" for s in REF_SIGNALS], REF_TIME * u"ns")
     plain = contiguous_wfs()
