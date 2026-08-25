@@ -99,12 +99,12 @@ end
     @test (wf + 2.5).time == t
     @test wf + 2.5 - 2.5 ≈ wf
 
-    # A plain shift is interpreted in unitful samples' own unit.
     @test (wf_u + 2.5u"eV").signal == s * u"eV" .+ 2.5u"eV"
-    @test (wf_u + 2.5).signal == s * u"eV" .+ 2.5u"eV"
-    @test wf_u + 2 == wf_u + 2u"eV"
+    @test @inferred(2.5u"eV" - wf_u) == RDWaveform(t, 2.5u"eV" .- s * u"eV")
 
-    # Plain samples do not adopt a unitful shift's unit: no reverse inference.
+    # A shift must be dimensionally compatible with the samples, in either direction.
+    @test_throws Unitful.DimensionError wf_u + 2.5
+    @test_throws Unitful.DimensionError 2.5 - wf_u
     @test_throws Unitful.DimensionError wf + 2.5u"eV"
     @test_throws Unitful.DimensionError 2.5u"eV" - wf
 end
@@ -230,11 +230,12 @@ end
     @test all(i -> (u_wfs .+ u_wfs)[i] == u_wfs[i] + u_wfs[i], eachindex(u_wfs))
     @test (2.0 .* u_wfs).signal isa ArrayOfSimilarArrays
 
-    # A plain shift, scalar or per waveform, is interpreted in unitful samples' own unit.
-    @test all(i -> (u_wfs .+ 10.0)[i] == u_wfs[i] + 10.0u"eV", eachindex(u_wfs))
-    @test all(i -> (u_wfs .- shifts)[i] == u_wfs[i] - shifts[i] * u"eV", eachindex(u_wfs))
+    @test all(i -> (u_wfs .+ 10.0u"eV")[i] == u_wfs[i] + 10.0u"eV", eachindex(u_wfs))
+    @test all(i -> (u_wfs .- shifts * u"eV")[i] == u_wfs[i] - shifts[i] * u"eV", eachindex(u_wfs))
 
-    # Plain samples do not adopt a unitful shift's unit: no reverse inference.
+    # A shift must be dimensionally compatible with the samples, in either direction.
+    @test_throws Unitful.DimensionError u_wfs .+ 10.0
+    @test_throws Unitful.DimensionError u_wfs .- shifts
     @test_throws Unitful.DimensionError plain .+ 10.0u"eV"
     @test_throws Unitful.DimensionError plain .- shifts * u"eV"
 end
