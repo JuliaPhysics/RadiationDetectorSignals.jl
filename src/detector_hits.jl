@@ -68,7 +68,7 @@ function ungroup_by_evtno(events::DetectorHitEvents)
     expanded_evtno = ((evtno, edep) -> Fill(evtno, size(edep))).(events.evtno, events.edep)
     Table(merge(
         map(flatview, Tables.columns(events)),
-        (evtno = collect(flatview(expanded_evtno)),)
+        (evtno = reduce(vcat, expanded_evtno),)
     ))
 end
 
