@@ -86,6 +86,20 @@ A `StructsArrays.StructArray` of [`RDWaveform`](@ref).
 
 By default, uses `ArraysOfArrays.VectorOfVectors` for contiguous memory
 layout.
+
+`sum`, `mean`, `var` and `std` reduce sample-wise over all waveforms and
+return a single [`RDWaveform`](@ref) carrying the shared time axis. `var` and
+`std` use the Bessel-corrected denominator `length(wfs) - 1`. Integer samples
+narrower than `Int` accumulate in `Int` to avoid overflow.
+
+The same arithmetic that `RDWaveform` supports is available broadcasted over
+the whole array, keeping the time axes of the operands. A shift amount may
+also be a vector, shifting each waveform by its own amount. Broadcast
+expressions over an `ArrayOfRDWaveforms` are evaluated one operation at a
+time rather than fused, so that contiguously stored signals stay contiguous.
+
+Waveforms with different time axes throw an `ArgumentError`, and signals whose
+axes do not match throw a `DimensionMismatch`.
 """
 const ArrayOfRDWaveforms{
     T<:RealQuantity,U<:RealQuantity,N,
@@ -214,52 +228,12 @@ end
 _sample_std(signals::AbstractVector{<:AbstractVector}) = sqrt.(_sample_var(signals))
 
 
-"""
-    sum(wfs::ArrayOfRDWaveforms)
-
-Sample-wise sum over all waveforms in `wfs`, as a single [`RDWaveform`](@ref).
-
-All waveforms must share the same time axis, which becomes the time axis of the
-result; throws an `ArgumentError` otherwise. Signals themselves must share the
-same axes; throws a `DimensionMismatch` otherwise. Integer samples narrower
-than `Int` accumulate in `Int` to avoid overflow.
-"""
 Base.sum(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), _sample_sum(wfs.signal))
 
-"""
-    mean(wfs::ArrayOfRDWaveforms)
-
-Sample-wise mean over all waveforms in `wfs`, as a single [`RDWaveform`](@ref).
-
-All waveforms must share the same time axis, which becomes the time axis of the
-result; throws an `ArgumentError` otherwise. Signals themselves must share the
-same axes; throws a `DimensionMismatch` otherwise.
-"""
 Statistics.mean(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), _sample_mean(wfs.signal))
 
-"""
-    var(wfs::ArrayOfRDWaveforms)
-
-Sample-wise variance over all waveforms in `wfs`, as a single [`RDWaveform`](@ref).
-
-Uses the Bessel-corrected denominator `length(wfs) - 1`. All waveforms must share
-the same time axis, which becomes the time axis of the result; throws an
-`ArgumentError` otherwise. Signals themselves must share the same axes; throws
-a `DimensionMismatch` otherwise.
-"""
 Statistics.var(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), _sample_var(wfs.signal))
 
-"""
-    std(wfs::ArrayOfRDWaveforms)
-
-Sample-wise standard deviation over all waveforms in `wfs`, as a single
-[`RDWaveform`](@ref).
-
-Uses the Bessel-corrected denominator `length(wfs) - 1`. All waveforms must share
-the same time axis, which becomes the time axis of the result; throws an
-`ArgumentError` otherwise. Signals themselves must share the same axes; throws
-a `DimensionMismatch` otherwise.
-"""
 Statistics.std(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), _sample_std(wfs.signal))
 
 
