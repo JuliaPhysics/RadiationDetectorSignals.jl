@@ -18,7 +18,7 @@ using Unitful
 
 using Unitful: RealOrRealQuantity as RealQuantity
 
-import StatsBase
+import Statistics
 
 include("array_types.jl")
 include("detector_hits.jl")
