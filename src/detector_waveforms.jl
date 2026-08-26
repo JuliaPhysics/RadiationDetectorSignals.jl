@@ -49,7 +49,7 @@ Base.float(wf::RDWaveform) = RDWaveform(float(wf.time), float(wf.signal))
 
 A `StructsArrays.StructArray` of [`RDWaveform`](@ref).
 
-By default, uses `ArraysOfArrays.VectorOfVectors` for contiguous memory
+By default, uses `ArraysOfArrays.VectorOfArrays` for contiguous memory
 layout.
 """
 const ArrayOfRDWaveforms{
@@ -80,7 +80,7 @@ end
 
 
 StructArray{RDWaveform}(waveforms::AbstractVector{<:RDWaveform}) =
-    StructArray{RDWaveform}((map(w -> w.time, waveforms), VectorOfVectors(map(w -> w.signal, waveforms))))
+    StructArray{RDWaveform}((map(w -> w.time, waveforms), VectorOfArrays(map(w -> w.signal, waveforms))))
 
 Base.convert(::Type{ArrayOfRDWaveforms}, waveforms::AbstractVector{<:RDWaveform}) = StructArray{RDWaveform}(waveforms)
 Base.convert(::Type{ArrayOfRDWaveforms}, waveforms::StructArray{<:RDWaveform}) = waveforms

@@ -8,7 +8,7 @@ using ArraysOfArrays, FillArrays, StructArrays, Unitful
 
 @testset "detector_waveforms" begin
     nwf = 50
-    wfdata = nestedview(rand(128, nwf))
+    wfdata = VectorOfSimilarVectors(rand(128, nwf))
     timedata = Fill(0:0.1:12.7,nwf)
 
     @test @inferred(ArrayOfRDWaveforms((wfdata, timedata))) isa StructArray
@@ -21,7 +21,7 @@ end # testset
 
 @testset "detector_waveforms with units" begin
     nwf = 50
-    wfdata = nestedview(rand(128, nwf) * u"eV")
+    wfdata = VectorOfSimilarVectors(rand(128, nwf) * u"eV")
     timedata = Fill((0:0.1:12.7) * u"ns",nwf)
 
     @test @inferred(ArrayOfRDWaveforms((wfdata, timedata))) isa StructArray
