@@ -51,3 +51,28 @@ end # testset
     @test A == C
 end
 
+
+@testset "detector_waveforms broadcast" begin
+    nwf = 5
+    timedata = Fill((0:0.1:12.7) * u"ns", nwf)
+    stats(wf) = (mean = sum(wf.signal) / length(wf.signal), t_last = last(wf.time))
+
+    for signal in (
+        VectorOfSimilarVectors(rand(128, nwf)),
+        VectorOfVectors([rand(128) for _ in 1:nwf]),
+    )
+        A = ArrayOfRDWaveforms((timedata, signal))
+        S = stats.(A)
+        @test S isa StructArray
+        @test S.mean == [stats(wf).mean for wf in A]
+        @test S.t_last == fill(12.7u"ns", nwf)
+        @test (wf -> length(wf.signal)).(A) == fill(128, nwf)
+        @test (wf -> 2 .* wf.signal).(A) == [2 .* wf.signal for wf in A]
+    end
+
+    # Element type may be less specific than the stored columns:
+    signal = VectorOfSimilarVectors(rand(128, nwf))
+    B = StructArray{RDWaveform{eltype(eltype(timedata)),Float64,eltype(timedata),Vector{Float64}}}((timedata, signal))
+    @test !(typeof(B[1]) <: eltype(B))
+    @test stats.(B) isa StructArray
+end # testset
