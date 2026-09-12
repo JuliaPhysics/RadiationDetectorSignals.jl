@@ -103,6 +103,11 @@ end
 @inline Base.getindex(A::StructArray{<:RDWaveform}, I::Int...) =
     RDWaveform(A.time[I...], A.signal[I...])
 
+# Broadcast via the getindex above, so struct-valued results become a
+# StructArray regardless of the broadcast style of the signal column:
+Base.BroadcastStyle(::Type{<:StructArray{<:RDWaveform,N}}) where {N} =
+    StructArrays.StructArrayStyle{Base.Broadcast.DefaultArrayStyle{N},N}()
+
 
 @inline ArrayOfRDWaveforms(contents) = StructArray{RDWaveform}(contents)
 
