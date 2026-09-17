@@ -19,6 +19,15 @@ Fields:
 * `time`: time axis, typically a range
 * `signal`: detector signal values
 
+Waveforms support arithmetic, always keeping the time axis of the operands:
+`+`, `-` and unary `-` between two waveforms that share a time axis, scalar
+`*`, `/` and `\\`, and `+`/`-` with a scalar to shift every sample. Combining
+waveforms with different time axes throws an `ArgumentError`.
+
+A shift amount must be dimensionally compatible with the samples: shifting
+unitful samples by a plain number, or plain samples by a unitful amount,
+throws a `Unitful.DimensionError`.
+
 Use [`ArrayOfRDWaveforms`](@ref) for arrays of `RDWaveform` that have a
 compact memory layout.
 """
@@ -41,6 +50,32 @@ Base.isapprox(a::RDWaveform, b::RDWaveform; kwargs...) = isapprox(a.time, b.time
 
 Base.float(wf::RDWaveform) = RDWaveform(float(wf.time), float(wf.signal))
 
+function Base.:(+)(a::RDWaveform, b::RDWaveform)
+    a.time == b.time || throw(ArgumentError("Can't add RDWaveform with different time axes"))
+    RDWaveform(a.time, a.signal + b.signal)
+end
+
+function Base.:(-)(a::RDWaveform, b::RDWaveform)
+    a.time == b.time || throw(ArgumentError("Can't subtract RDWaveform with different time axes"))
+    RDWaveform(a.time, a.signal - b.signal)
+end
+
+Base.:(-)(a::RDWaveform) = RDWaveform(a.time, -a.signal)
+
+Base.:(+)(wf::RDWaveform, a::RealQuantity) = RDWaveform(wf.time, wf.signal .+ a)
+Base.:(+)(a::RealQuantity, wf::RDWaveform) = wf + a
+
+Base.:(-)(wf::RDWaveform, a::RealQuantity) = RDWaveform(wf.time, wf.signal .- a)
+
+Base.:(-)(a::RealQuantity, wf::RDWaveform) = RDWaveform(wf.time, a .- wf.signal)
+
+Base.:(*)(a::Real, b::RDWaveform) = RDWaveform(b.time, a * b.signal)
+Base.:(*)(a::RDWaveform, b::Real) = b * a
+
+Base.:(/)(a::RDWaveform, b::Real) = a * inv(b)
+
+Base.:(\)(a::Real, b::RDWaveform) = b / a
+
 # ToDo: function for waveform duration. Use IntervalSets.duration?
 
 
@@ -51,6 +86,20 @@ A `StructsArrays.StructArray` of [`RDWaveform`](@ref).
 
 By default, uses `ArraysOfArrays.VectorOfVectors` for contiguous memory
 layout.
+
+`sum`, `mean`, `var` and `std` reduce sample-wise over all waveforms and
+return a single [`RDWaveform`](@ref) carrying the shared time axis. `var` and
+`std` use the Bessel-corrected denominator `length(wfs) - 1`. Integer samples
+narrower than `Int` accumulate in `Int` to avoid overflow.
+
+The same arithmetic that `RDWaveform` supports is available broadcasted over
+the whole array, keeping the time axes of the operands. A shift amount may
+also be a vector, shifting each waveform by its own amount. Broadcast
+expressions over an `ArrayOfRDWaveforms` are evaluated one operation at a
+time rather than fused, so that contiguously stored signals stay contiguous.
+
+Waveforms with different time axes throw an `ArgumentError`, and signals whose
+axes do not match throw a `DimensionMismatch`.
 """
 const ArrayOfRDWaveforms{
     T<:RealQuantity,U<:RealQuantity,N,
@@ -105,6 +154,165 @@ end
 
 
 @inline ArrayOfRDWaveforms(contents) = StructArray{RDWaveform}(contents)
+
+
+# Reduce the time axes of an ArrayOfRDWaveforms to the single axis they all share:
+_common_time_axis(X::Fill) = first(X)
+
+function _common_time_axis(X::AbstractArray)
+    x = first(X)
+    all(isequal(x), X) || throw(ArgumentError("Waveform time axes must all be equal"))
+    return x
+end
+
+
+# Accumulator element type for sample-wise sums: whatever `sum` returns for a vector
+# of such samples. `Base.add_sum` is the reduction operator `sum` uses, and widens
+# narrow integers because detector samples are commonly Int32 and summing thousands
+# of them in Int32 overflows silently. Deferring to it keeps every other sample type
+# consistent with `sum` as well, instead of enumerating types here.
+_sample_sum_eltype(::Type{T}) where {T} = Base.promote_op(Base.add_sum, T, T)
+
+# A matrix view of the samples, one column per waveform, sharing the signals' own
+# storage; `nothing` when the signals are not one contiguous block of equal-length
+# vectors. Operating on the whole block in a single pass keeps the work on whatever
+# device holds the samples, instead of dispatching one pass per waveform.
+_sample_matrix(signals::ArrayOfSimilarVectors) = flatview(signals)
+_sample_matrix(signals::AbstractVector{<:AbstractVector}) = nothing
+
+# A VectorOfVectors keeps its elements in one flat buffer, so equal-length elements
+# reshape into that matrix without copying. Ragged ones have no matrix form.
+function _sample_matrix(signals::VectorOfVectors)
+    isempty(signals) && return nothing
+    n = length(first(signals))
+    all(signal -> length(signal) == n, signals) || return nothing
+    return reshape(flatview(signals), n, length(signals))
+end
+
+# Signals with no contiguous block behind them accumulate into a single preallocated
+# buffer: one allocation instead of one per waveform.
+#
+# The accumulator's element type follows `sum`, so narrow integer samples cannot
+# overflow. Adding whole sample vectors would not widen them: `Base.add_sum` widens
+# narrow integers, but `Vector{Int32} + Vector{Int32}` is a `Vector{Int32}`.
+function _nested_sample_sum(signals::AbstractVector{<:AbstractVector})
+    out = similar(first(signals), _sample_sum_eltype(eltype(eltype(signals))))
+    fill!(out, zero(eltype(out)))
+    for signal in signals
+        axes(signal) == axes(out) || throw(DimensionMismatch("Waveform signals must all have the same axes: $(axes(signal)) vs $(axes(out))"))
+        out .+= signal
+    end
+    return out
+end
+
+function _sample_sum(signals::AbstractVector{<:AbstractVector})
+    M = _sample_matrix(signals)
+    isnothing(M) || return dropdims(sum(M, dims = 2), dims = 2)
+    return _nested_sample_sum(signals)
+end
+
+function _sample_mean(signals::AbstractVector{<:AbstractVector})
+    M = _sample_matrix(signals)
+    isnothing(M) || return dropdims(Statistics.mean(M, dims = 2), dims = 2)
+    return _sample_sum(signals) ./ length(signals)
+end
+
+function _sample_var(signals::AbstractVector{<:AbstractVector})
+    M = _sample_matrix(signals)
+    isnothing(M) || return dropdims(Statistics.var(M, dims = 2), dims = 2)
+    # Statistics reduces vector elements sample-wise; supplying the mean keeps the
+    # accumulator that narrow integer samples need.
+    return Statistics.varm(signals, _sample_mean(signals))
+end
+
+_sample_std(signals::AbstractVector{<:AbstractVector}) = sqrt.(_sample_var(signals))
+
+
+Base.sum(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), _sample_sum(wfs.signal))
+
+Statistics.mean(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), _sample_mean(wfs.signal))
+
+Statistics.var(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), _sample_var(wfs.signal))
+
+Statistics.std(wfs::ArrayOfRDWaveforms) = RDWaveform(_common_time_axis(wfs.time), _sample_std(wfs.signal))
+
+
+# Broadcasting an operator over an ArrayOfRDWaveforms is evaluated eagerly, one
+# operation over the whole underlying sample storage, so that signals stored
+# contiguously stay contiguous instead of being rebuilt as a vector of separately
+# allocated vectors. Broadcast fusion is given up in exchange: an expression like
+# `2 .* wfs .+ wfs` evaluates in two steps rather than one.
+#
+# Signals with no contiguous block behind them are mapped over waveform by waveform.
+
+function _broadcast_signals(f, signals::AbstractVector{<:AbstractVector})
+    M = _sample_matrix(signals)
+    isnothing(M) && return map(f, signals)
+    return nestedview(f(M))
+end
+
+function _broadcast_signals(f, a::AbstractVector{<:AbstractVector}, b::AbstractVector{<:AbstractVector})
+    Ma, Mb = _sample_matrix(a), _sample_matrix(b)
+    (isnothing(Ma) || isnothing(Mb)) && return map(f, a, b)
+    return nestedview(f(Ma, Mb))
+end
+
+_scaled_waveforms(wfs::ArrayOfRDWaveforms, f) =
+    ArrayOfRDWaveforms((wfs.time, _broadcast_signals(f, wfs.signal)))
+
+function _combined_waveforms(a::ArrayOfRDWaveforms, b::ArrayOfRDWaveforms, f)
+    a.time == b.time || throw(ArgumentError("Can't combine ArrayOfRDWaveforms with different time axes"))
+    ArrayOfRDWaveforms((a.time, _broadcast_signals(f, a.signal, b.signal)))
+end
+
+Base.Broadcast.broadcasted(::typeof(*), a::Real, wfs::ArrayOfRDWaveforms) =
+    _scaled_waveforms(wfs, x -> a .* x)
+Base.Broadcast.broadcasted(::typeof(*), wfs::ArrayOfRDWaveforms, a::Real) =
+    _scaled_waveforms(wfs, x -> x .* a)
+Base.Broadcast.broadcasted(::typeof(/), wfs::ArrayOfRDWaveforms, a::Real) =
+    _scaled_waveforms(wfs, x -> x ./ a)
+Base.Broadcast.broadcasted(::typeof(\), a::Real, wfs::ArrayOfRDWaveforms) =
+    _scaled_waveforms(wfs, x -> a .\ x)
+
+Base.Broadcast.broadcasted(::typeof(-), wfs::ArrayOfRDWaveforms) =
+    _scaled_waveforms(wfs, x -> .-x)
+
+Base.Broadcast.broadcasted(::typeof(+), a::ArrayOfRDWaveforms, b::ArrayOfRDWaveforms) =
+    _combined_waveforms(a, b, (x, y) -> x .+ y)
+Base.Broadcast.broadcasted(::typeof(-), a::ArrayOfRDWaveforms, b::ArrayOfRDWaveforms) =
+    _combined_waveforms(a, b, (x, y) -> x .- y)
+
+Base.Broadcast.broadcasted(::typeof(+), wfs::ArrayOfRDWaveforms, a::RealQuantity) =
+    _scaled_waveforms(wfs, x -> x .+ a)
+Base.Broadcast.broadcasted(::typeof(+), a::RealQuantity, wfs::ArrayOfRDWaveforms) =
+    _scaled_waveforms(wfs, x -> a .+ x)
+Base.Broadcast.broadcasted(::typeof(-), wfs::ArrayOfRDWaveforms, a::RealQuantity) =
+    _scaled_waveforms(wfs, x -> x .- a)
+Base.Broadcast.broadcasted(::typeof(-), a::RealQuantity, wfs::ArrayOfRDWaveforms) =
+    _scaled_waveforms(wfs, x -> a .- x)
+
+
+# One shift per waveform: the shifts broadcast along the sample axis, so
+# contiguously stored signals are shifted in a single operation.
+function _shift_signals(f, signals::AbstractVector{<:AbstractVector}, a::AbstractVector)
+    M = _sample_matrix(signals)
+    isnothing(M) && return map(f, signals, a)
+    return nestedview(f(M, transpose(a)))
+end
+
+function _shifted_waveforms(wfs::ArrayOfRDWaveforms, a::AbstractVector{<:RealQuantity}, f)
+    axes(a) == axes(wfs) || throw(DimensionMismatch("Need one shift per waveform: $(axes(a)) vs $(axes(wfs))"))
+    ArrayOfRDWaveforms((wfs.time, _shift_signals(f, wfs.signal, a)))
+end
+
+Base.Broadcast.broadcasted(::typeof(+), wfs::ArrayOfRDWaveforms, a::AbstractVector{<:RealQuantity}) =
+    _shifted_waveforms(wfs, a, (x, y) -> x .+ y)
+Base.Broadcast.broadcasted(::typeof(+), a::AbstractVector{<:RealQuantity}, wfs::ArrayOfRDWaveforms) =
+    _shifted_waveforms(wfs, a, (x, y) -> y .+ x)
+Base.Broadcast.broadcasted(::typeof(-), wfs::ArrayOfRDWaveforms, a::AbstractVector{<:RealQuantity}) =
+    _shifted_waveforms(wfs, a, (x, y) -> x .- y)
+Base.Broadcast.broadcasted(::typeof(-), a::AbstractVector{<:RealQuantity}, wfs::ArrayOfRDWaveforms) =
+    _shifted_waveforms(wfs, a, (x, y) -> y .- x)
 
 
 # ToDo:
