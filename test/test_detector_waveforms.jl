@@ -51,3 +51,34 @@ end # testset
     @test A == C
 end
 
+
+@testset "detector_waveform indexing" begin
+    # Slicing the signals changes their element type, from views of a reshaped
+    # range to views of a matrix. The waveform element type must follow:
+    t = (0:3) * u"μs"
+    wfs(signals...) = [RDWaveform(t, s) for s in signals]
+
+    A = ArrayOfRDWaveforms((fill(t, 5), VectorOfSimilarVectors(reshape(1:20, 4, 5))))
+
+    @test A[Int32(2)] == RDWaveform(t, 5:8)
+
+    B = A[:]
+    @test eltype(B) == typeof(B[1])
+    @test collect(B) == wfs(1:4, 5:8, 9:12, 13:16, 17:20)
+
+    B = A[2:3]
+    @test eltype(B) == typeof(B[1])
+    @test collect(B) == wfs(5:8, 9:12)
+
+    B = A[[true, false, false, true, false]]
+    @test eltype(B) == typeof(B[1])
+    @test collect(B) == wfs(1:4, 13:16)
+
+    @test_throws BoundsError A[4:6]
+
+    A2 = ArrayOfRDWaveforms((fill(t, 2, 3), ArrayOfSimilarArrays{Int,1}(reshape(1:24, 4, 2, 3))))
+    @test A2[CartesianIndex(1, 2)] == RDWaveform(t, 9:12)
+    B = A2[1, 2:3]
+    @test eltype(B) == typeof(B[1])
+    @test collect(B) == wfs(9:12, 17:20)
+end

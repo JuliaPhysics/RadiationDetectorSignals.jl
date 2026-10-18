@@ -98,10 +98,21 @@ function Base.isapprox(a::ArrayOfRDWaveforms, b::ArrayOfRDWaveforms; kwargs...)
 end
 
 
-# Specialize getindex to properly support ArraysOfArrays, preventing
-# conversion to exact element type:
-@inline Base.getindex(A::StructArray{<:RDWaveform}, I::Int...) =
-    RDWaveform(A.time[I...], A.signal[I...])
+# Unlike StructArrays, don't convert elements to the element type of `A` or keep
+# it for non-scalar results: the element types of the components can change
+# under indexing, e.g. when slicing reads lazily loaded data into memory.
+Base.@propagate_inbounds Base.getindex(A::StructArray{<:RDWaveform}, I...) =
+    _wfs_getindex(A, to_indices(A, I)...)
+
+Base.@propagate_inbounds function _wfs_getindex(A::StructArray{<:RDWaveform}, I::Int...)
+    @boundscheck checkbounds(A, I...)
+    RDWaveform(@inbounds(A.time[I...]), @inbounds(A.signal[I...]))
+end
+
+Base.@propagate_inbounds function _wfs_getindex(A::StructArray{<:RDWaveform}, I...)
+    @boundscheck checkbounds(A, I...)
+    ArrayOfRDWaveforms((@inbounds(A.time[I...]), @inbounds(A.signal[I...])))
+end
 
 
 @inline ArrayOfRDWaveforms(contents) = StructArray{RDWaveform}(contents)
