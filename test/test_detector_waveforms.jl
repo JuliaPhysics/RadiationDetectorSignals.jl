@@ -76,9 +76,20 @@ end
 
     @test_throws BoundsError A[4:6]
 
+    V = view(A, 2:3)
+    @test eltype(V) == typeof(V[1])
+    @test collect(V) == wfs(5:8, 9:12)
+    @test_throws BoundsError view(A, 4:6)
+
     A2 = ArrayOfRDWaveforms((fill(t, 2, 3), ArrayOfSimilarArrays{Int,1}(reshape(1:24, 4, 2, 3))))
     @test A2[CartesianIndex(1, 2)] == RDWaveform(t, 9:12)
     B = A2[1, 2:3]
     @test eltype(B) == typeof(B[1])
     @test collect(B) == wfs(9:12, 17:20)
+
+    # Views alias the parent, A[:] is a writable copy:
+    Am = A[:]
+    V = view(Am, 2:3)
+    Am.signal[2][1] = 0
+    @test V[1].signal[1] == 0
 end

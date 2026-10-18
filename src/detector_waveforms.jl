@@ -114,6 +114,11 @@ Base.@propagate_inbounds function _wfs_getindex(A::StructArray{<:RDWaveform}, I.
     ArrayOfRDWaveforms((@inbounds(A.time[I...]), @inbounds(A.signal[I...])))
 end
 
+@inline function Base.view(A::StructArray{<:RDWaveform}, I...)
+    @boundscheck checkbounds(A, I...)
+    ArrayOfRDWaveforms((@inbounds(view(A.time, I...)), @inbounds(view(A.signal, I...))))
+end
+
 
 @inline ArrayOfRDWaveforms(contents) = StructArray{RDWaveform}(contents)
 
