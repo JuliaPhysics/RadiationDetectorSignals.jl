@@ -117,6 +117,40 @@ end
     @test_throws ArgumentError RDWaveform([0.0], [1.0]) + RDWaveform([1e-300], [1.0])
 end
 
+@testset "RDBaseline" begin
+    t = 0:0.1:12.7
+    s = rand(128)
+    wf = RDWaveform(t, s)
+    bl = RDBaseline(2.5)
+
+    @test @inferred(wf + bl) == RDWaveform(t, s .+ 2.5)
+    @test @inferred(bl + wf) == wf + bl
+    @test @inferred(wf - bl) == RDWaveform(t, s .- 2.5)
+    @test @inferred(bl - wf) == RDWaveform(t, 2.5 .- s)
+    @test wf + bl - bl ≈ wf
+
+    # Baselines form a vector space as well, and absorb scalars:
+    @test -bl == RDBaseline(-2.5)
+    @test bl + bl == RDBaseline(5.0)
+    @test bl - RDBaseline(1.0) == RDBaseline(1.5)
+    @test 2 * bl == bl * 2 == RDBaseline(5.0)
+    @test bl / 2 == 2 \ bl == RDBaseline(1.25)
+    @test (RDBaseline(1f0) / 2).level isa Float32
+    @test bl + 1.0 == 1.0 + bl == RDBaseline(3.5)
+    @test bl - 1.0 == RDBaseline(1.5)
+    @test 1.0 - bl == RDBaseline(-1.5)
+
+    wf_u = RDWaveform(t, s * u"eV")
+    @test (wf_u + RDBaseline(2.5u"eV")).signal == s * u"eV" .+ 2.5u"eV"
+    @test @inferred(RDBaseline(2.5u"eV") - wf_u) == RDWaveform(t, 2.5u"eV" .- s * u"eV")
+
+    # The level must be dimensionally compatible with the samples, in either direction.
+    @test_throws Unitful.DimensionError wf_u + bl
+    @test_throws Unitful.DimensionError bl - wf_u
+    @test_throws Unitful.DimensionError wf + RDBaseline(2.5u"eV")
+    @test_throws Unitful.DimensionError RDBaseline(2.5u"eV") - wf
+end
+
 @testset "detector_waveform indexing" begin
     # Slicing the signals changes their element type, from views of a reshaped
     # range to views of a matrix. The waveform element type must follow:
