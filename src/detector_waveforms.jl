@@ -24,7 +24,8 @@ on waveforms and `*`, `/` and `\\` with a real scalar keep the time axis.
 Floating-point time axes that differ by no more than a small fraction of the
 sampling step, as from rounding, count as equal, and the result keeps the
 time axis of the left operand. Combining waveforms with other time axes
-throws an `ArgumentError`.
+throws an `ArgumentError`. To shift all samples by a constant, add or
+subtract an [`RDBaseline`](@ref).
 
 Use [`ArrayOfRDWaveforms`](@ref) for arrays of `RDWaveform` that have a
 compact memory layout.
@@ -88,6 +89,46 @@ Base.:(/)(a::RDWaveform, b::Real) = RDWaveform(a.time, a.signal / b)
 Base.:(\)(a::Real, b::RDWaveform) = b / a
 
 # ToDo: function for waveform duration. Use IntervalSets.duration?
+
+
+"""
+    RDBaseline(level)
+
+A constant signal with amplitude `level`, independent of any time axis.
+
+Added to or subtracted from an [`RDWaveform`](@ref), it shifts every sample by
+`level`, which must be dimensionally compatible with the samples. Baselines
+support the same algebra as waveforms, and `+` and `-` with a scalar.
+"""
+struct RDBaseline{T<:RealQuantity}
+    level::T
+end
+
+export RDBaseline
+
+Base.broadcastable(bl::RDBaseline) = Ref(bl)
+
+Base.:(+)(a::RDBaseline, b::RDBaseline) = RDBaseline(a.level + b.level)
+Base.:(-)(a::RDBaseline, b::RDBaseline) = RDBaseline(a.level - b.level)
+Base.:(-)(bl::RDBaseline) = RDBaseline(-bl.level)
+
+Base.:(+)(bl::RDBaseline, a::RealQuantity) = RDBaseline(bl.level + a)
+Base.:(+)(a::RealQuantity, bl::RDBaseline) = bl + a
+
+Base.:(-)(bl::RDBaseline, a::RealQuantity) = RDBaseline(bl.level - a)
+Base.:(-)(a::RealQuantity, bl::RDBaseline) = RDBaseline(a - bl.level)
+
+Base.:(*)(a::Real, bl::RDBaseline) = RDBaseline(a * bl.level)
+Base.:(*)(bl::RDBaseline, a::Real) = a * bl
+
+Base.:(/)(bl::RDBaseline, a::Real) = RDBaseline(bl.level / a)
+Base.:(\)(a::Real, bl::RDBaseline) = bl / a
+
+Base.:(+)(wf::RDWaveform, bl::RDBaseline) = RDWaveform(wf.time, wf.signal .+ bl.level)
+Base.:(+)(bl::RDBaseline, wf::RDWaveform) = wf + bl
+
+Base.:(-)(wf::RDWaveform, bl::RDBaseline) = RDWaveform(wf.time, wf.signal .- bl.level)
+Base.:(-)(bl::RDBaseline, wf::RDWaveform) = RDWaveform(wf.time, bl.level .- wf.signal)
 
 
 """
