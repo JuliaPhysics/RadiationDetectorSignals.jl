@@ -19,6 +19,13 @@ Fields:
 * `time`: time axis, typically a range
 * `signal`: detector signal values
 
+Waveforms with equal time axes form a vector space: `+`, `-` and unary `-`
+on waveforms and `*`, `/` and `\\` with a real scalar keep the time axis.
+Floating-point time axes that differ by no more than a small fraction of the
+sampling step, as from rounding, count as equal, and the result keeps the
+time axis of the left operand. Combining waveforms with other time axes
+throws an `ArgumentError`.
+
 Use [`ArrayOfRDWaveforms`](@ref) for arrays of `RDWaveform` that have a
 compact memory layout.
 """
@@ -40,6 +47,45 @@ Base.:(==)(a::RDWaveform, b::RDWaveform) = a.time == b.time && a.signal == b.sig
 Base.isapprox(a::RDWaveform, b::RDWaveform; kwargs...) = isapprox(a.time, b.time; kwargs...) && isapprox(a.signal, b.signal; kwargs...)
 
 Base.float(wf::RDWaveform) = RDWaveform(float(wf.time), float(wf.signal))
+
+# Time axes match if they are equal or, for floating-point element types,
+# differ pointwise by no more than a small fraction of the sampling step, as
+# from rounding. Equal same-type ranges compare in O(1):
+function _time_axes_match(a::AbstractVector, b::AbstractVector)
+    a === b && return true
+    axes(a) == axes(b) || return false
+    a == b && return true
+    rtol = max(_rounding_rtol(eltype(a)), _rounding_rtol(eltype(b)))
+    rtol > zero(rtol) || return false
+    tol = rtol * min(_sampling_step(a), _sampling_step(b))
+    return all(((x, y),) -> abs(x - y) <= tol, zip(a, b))
+end
+
+_rounding_rtol(::Type{T}) where {T<:AbstractFloat} = sqrt(eps(T))
+_rounding_rtol(::Type{T}) where {T<:Real} = zero(T)
+_rounding_rtol(::Type{<:Unitful.AbstractQuantity{T}}) where {T} = _rounding_rtol(T)
+
+# The first sampling interval, assuming uniform sampling:
+_sampling_step(t::AbstractVector) = length(t) > 1 ? abs(t[begin + 1] - t[begin]) : zero(eltype(t))
+
+function Base.:(+)(a::RDWaveform, b::RDWaveform)
+    _time_axes_match(a.time, b.time) || throw(ArgumentError("Can't add RDWaveform with different time axes"))
+    RDWaveform(a.time, a.signal + b.signal)
+end
+
+function Base.:(-)(a::RDWaveform, b::RDWaveform)
+    _time_axes_match(a.time, b.time) || throw(ArgumentError("Can't subtract RDWaveform with different time axes"))
+    RDWaveform(a.time, a.signal - b.signal)
+end
+
+Base.:(-)(a::RDWaveform) = RDWaveform(a.time, -a.signal)
+
+Base.:(*)(a::Real, b::RDWaveform) = RDWaveform(b.time, a * b.signal)
+Base.:(*)(a::RDWaveform, b::Real) = b * a
+
+Base.:(/)(a::RDWaveform, b::Real) = RDWaveform(a.time, a.signal / b)
+
+Base.:(\)(a::Real, b::RDWaveform) = b / a
 
 # ToDo: function for waveform duration. Use IntervalSets.duration?
 
