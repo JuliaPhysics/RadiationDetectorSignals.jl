@@ -3,7 +3,7 @@
 using RadiationDetectorSignals
 using Test
 
-using ArraysOfArrays, FillArrays, StructArrays, Unitful
+using Adapt, ArraysOfArrays, FillArrays, JLArrays, Statistics, StructArrays, Unitful
 
 
 @testset "detector_waveforms" begin
@@ -50,6 +50,20 @@ end # testset
     @test A != B 
     @test A == C
 end
+
+# Sample-wise reductions over these signals are exact in floating point.
+const REF_TIME = 0:0.5:1.5
+const REF_SIGNALS = [[1.0, 2.0, 4.0, 8.0], [3.0, 6.0, 8.0, 16.0], [5.0, 10.0, 12.0, 24.0]]
+
+# The same waveforms with the signals in one block, in one flat buffer, or
+# allocated separately:
+contiguous_wfs(signals = REF_SIGNALS, time = REF_TIME) =
+    ArrayOfRDWaveforms((Fill(time, length(signals)), sliced(reduce(hcat, signals))))
+vov_wfs(signals = REF_SIGNALS, time = REF_TIME) =
+    ArrayOfRDWaveforms((Fill(time, length(signals)), VectorOfVectors(signals)))
+nested_wfs(signals = REF_SIGNALS, time = REF_TIME) =
+    ArrayOfRDWaveforms((Fill(time, length(signals)), collect(signals)))
+
 
 @testset "detector_waveform arithmetic" begin
     t = 0:0.1:12.7
@@ -149,6 +163,124 @@ end
     @test_throws Unitful.DimensionError bl - wf_u
     @test_throws Unitful.DimensionError wf + RDBaseline(2.5u"eV")
     @test_throws Unitful.DimensionError RDBaseline(2.5u"eV") - wf
+end
+
+@testset "detector_waveform broadcasting" begin
+    forms = (
+        (wfs -> 2.0 .* wfs,              wf -> 2.0 * wf),
+        (wfs -> wfs ./ 2.0,              wf -> wf / 2.0),
+        (wfs -> .-wfs,                   wf -> -wf),
+        (wfs -> wfs .+ RDBaseline(10.0), wf -> wf + RDBaseline(10.0)),
+        (wfs -> RDBaseline(10.0) .- wfs, wf -> RDBaseline(10.0) - wf),
+        (wfs -> wfs .+ wfs,              wf -> wf + wf),
+        (wfs -> @.(2.0 * wfs - wfs / 2.0 + RDBaseline(10.0)), wf -> 2.0 * wf - wf / 2.0 + RDBaseline(10.0)),
+    )
+    for wfs in (contiguous_wfs(), vov_wfs(), nested_wfs()), (broadcasted, elementwise) in forms
+        result = broadcasted(wfs)
+        @test result isa ArrayOfRDWaveforms
+        @test all(i -> result[i] == elementwise(wfs[i]), eachindex(wfs))
+    end
+
+    wfs = contiguous_wfs()
+    baselines = RDBaseline.([100.0, 200.0, 300.0])
+    shifted = wfs .- baselines
+    @test all(i -> shifted[i] == wfs[i] - baselines[i], eachindex(wfs))
+    @test sum(2.0 .* wfs) == 2.0 * sum(wfs)
+end
+
+@testset "detector_waveform reductions" begin
+    # Identical results for all signal storage kinds.
+    for wfs in (contiguous_wfs(), vov_wfs(), nested_wfs())
+        @test @inferred(sum(wfs)) == RDWaveform(REF_TIME, [9.0, 18.0, 24.0, 48.0])
+        @test @inferred(mean(wfs)) == RDWaveform(REF_TIME, [3.0, 6.0, 8.0, 16.0])
+        @test @inferred(var(wfs)) == RDWaveform(REF_TIME, [4.0, 16.0, 16.0, 64.0])
+        @test @inferred(std(wfs)) == RDWaveform(REF_TIME, [2.0, 4.0, 4.0, 8.0])
+    end
+    @test var(vov_wfs(), corrected = false) == RDWaveform(REF_TIME, [4.0, 16.0, 16.0, 64.0] * (2 / 3))
+    @test std(vov_wfs(), corrected = false) ≈ RDWaveform(REF_TIME, [2.0, 4.0, 4.0, 8.0] * sqrt(2 / 3))
+    @test contiguous_wfs().signal isa ArrayOfSimilarArrays
+    @test vov_wfs().signal isa VectorOfVectors
+
+    # Against Statistics on the stacked samples:
+    signals = [rand(64) for _ in 1:25]
+    A = vov_wfs(signals, range(0.0, step = 0.5, length = 64))
+    reference = reduce(hcat, signals)
+    @test sum(A).signal ≈ vec(sum(reference, dims = 2))
+    @test var(A).signal ≈ vec(var(reference, dims = 2))
+    @test std(A).signal ≈ vec(std(reference, dims = 2))
+
+    # Time axes held per waveform, equal or differing by rounding only:
+    per_row = ArrayOfRDWaveforms((fill(REF_TIME, 3), VectorOfVectors(REF_SIGNALS)))
+    @test mean(per_row) == mean(vov_wfs())
+    rounded = ArrayOfRDWaveforms(([REF_TIME, collect(REF_TIME) .+ 1e-14, REF_TIME], VectorOfVectors(REF_SIGNALS)))
+    @test sum(rounded).signal == sum(vov_wfs()).signal
+
+    mismatched = ArrayOfRDWaveforms(([REF_TIME, REF_TIME, REF_TIME .+ 1], VectorOfVectors(REF_SIGNALS)))
+    @test_throws ArgumentError sum(mismatched)
+    @test_throws ArgumentError std(mismatched)
+    @test_throws ArgumentError sum(contiguous_wfs()[1:0])
+
+    t_ns = REF_TIME * u"ns"
+    @test sum(ArrayOfRDWaveforms(([t_ns, collect(t_ns), t_ns], VectorOfVectors(REF_SIGNALS)))) ==
+        RDWaveform(t_ns, [9.0, 18.0, 24.0, 48.0])
+    @test_throws ArgumentError sum(ArrayOfRDWaveforms(([t_ns, t_ns, t_ns .+ 1u"ns"], VectorOfVectors(REF_SIGNALS))))
+
+    # Units carry through, squared for the variance.
+    u_wfs = vov_wfs([s * u"eV" for s in REF_SIGNALS], REF_TIME * u"ns")
+    @test mean(u_wfs) == RDWaveform(REF_TIME * u"ns", [3.0, 6.0, 8.0, 16.0] * u"eV")
+    @test var(u_wfs) == RDWaveform(REF_TIME * u"ns", [4.0, 16.0, 16.0, 64.0] * u"eV^2")
+end
+
+# Accumulation widens sample types narrower than `Int`, as `sum` does. `Int32` is
+# narrower only where `Int` is 64 bits; on a 32-bit platform it is `Int` itself and
+# `sum` does not widen it either.
+@testset "detector_waveform sum widens narrow integers" begin
+    narrow_types = Sys.WORD_SIZE > 32 ? (Int16, Int32) : (Int16,)
+
+    for T in narrow_types
+        big = T(typemax(T) ÷ 2)
+        signals = [T[big, 1, 2, 3] for _ in 1:3]
+
+        for A in (contiguous_wfs(signals), vov_wfs(signals), nested_wfs(signals))
+            total, average = sum(A), mean(A)
+            @test eltype(total.signal) === Int
+            @test total.signal[1] == 3 * Int(big)
+            @test eltype(average.signal) === Float64
+            @test average.signal[1] == Float64(big)
+        end
+    end
+end
+
+@testset "detector_waveform reductions with mixed sample types" begin
+    A = nested_wfs([Int32[1, 2, 3, 4], [1.5, 2.5, 3.5, 4.5]])
+    @test sum(A) == RDWaveform(REF_TIME, [2.5, 4.5, 6.5, 8.5])
+    @test mean(A) == RDWaveform(REF_TIME, [1.25, 2.25, 3.25, 4.25])
+    @test var(A).signal ≈ fill(0.125, 4)
+    @test sum(A) == sum(nested_wfs([[1.5, 2.5, 3.5, 4.5], Int32[1, 2, 3, 4]]))
+end
+
+@testset "detector_waveform reductions reject ragged signals" begin
+    for signals in (VectorOfVectors([[1.0, 2.0], [1.0, 2.0, 3.0]]), [[1.0, 2.0], [1.0, 2.0, 3.0]])
+        A = ArrayOfRDWaveforms((Fill(REF_TIME, 2), signals))
+        @test_throws DimensionMismatch sum(A)
+        @test_throws DimensionMismatch var(A)
+    end
+end
+
+# JLArrays stands in for a GPU array type: the reductions must work with scalar
+# indexing disabled, also on the shape information of a device-resident
+# VectorOfVectors. Scalar indexing stays disabled for the rest of the run.
+@testset "detector_waveform reductions on a generic array backend (JLArrays)" begin
+    JLArrays.allowscalar(false)
+    device_wfs = (
+        ArrayOfRDWaveforms((Fill(REF_TIME, 3), sliced(JLArray(reduce(hcat, REF_SIGNALS))))),
+        ArrayOfRDWaveforms((Fill(REF_TIME, 3), adapt(JLArray, VectorOfVectors(REF_SIGNALS)))),
+    )
+    for wfs in device_wfs, f in (sum, mean, var, std)
+        result = f(wfs).signal
+        @test result isa JLArray
+        @test Array(result) == f(contiguous_wfs()).signal
+    end
 end
 
 @testset "detector_waveform indexing" begin

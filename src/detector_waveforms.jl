@@ -132,12 +132,19 @@ Base.:(-)(bl::RDBaseline, wf::RDWaveform) = RDWaveform(wf.time, bl.level .- wf.s
 
 
 """
-    ArrayOfRDWaveforms = StructArray{<:RDWaveform, ...)
+    ArrayOfRDWaveforms = StructArray{<:RDWaveform, ...}
 
-A `StructsArrays.StructArray` of [`RDWaveform`](@ref).
+A `StructArrays.StructArray` of [`RDWaveform`](@ref).
 
 By default, uses `ArraysOfArrays.VectorOfVectors` for contiguous memory
 layout.
+
+`sum`, `mean`, `var` and `std` reduce sample-wise over all waveforms and
+return a single [`RDWaveform`](@ref) with the time axis of the first waveform,
+which the others must match. `var` and `std` apply Bessel's correction unless
+`corrected = false`. Sample types follow the underlying reductions, so narrow
+integer samples are summed in a wider type. Unequal signal lengths throw a
+`DimensionMismatch`, an empty array an `ArgumentError`.
 """
 const ArrayOfRDWaveforms{
     T<:RealQuantity,U<:RealQuantity,N,
@@ -208,6 +215,35 @@ end
 
 
 @inline ArrayOfRDWaveforms(contents) = StructArray{RDWaveform}(contents)
+
+
+# Reduce the time axes of an ArrayOfRDWaveforms to the single axis they all share:
+_common_time_axis(X::Fill) = first(X)
+
+function _common_time_axis(X::AbstractArray)
+    x = first(X)
+    all(t -> _time_axes_match(t, x), X) || throw(ArgumentError("Waveform time axes must all match"))
+    return x
+end
+
+
+# Sample-wise reductions use the flat-data specializations of ArraysOfArrays
+# for vectors of similar vectors. `stacked` shares memory with a VectorOfVectors
+# of equal-length elements and throws a DimensionMismatch for unequal lengths.
+_as_similar_vectors(signals::AbstractVectorOfSimilarVectors) = signals
+_as_similar_vectors(signals::AbstractVector{<:AbstractVector}) = sliced(stacked(signals))
+
+function _reduce_waveforms(f, wfs::ArrayOfRDWaveforms)
+    isempty(wfs) && throw(ArgumentError("Can't reduce an empty array of waveforms"))
+    RDWaveform(_common_time_axis(wfs.time), f(_as_similar_vectors(wfs.signal)))
+end
+
+Base.sum(wfs::ArrayOfRDWaveforms) = _reduce_waveforms(sum, wfs)
+Statistics.mean(wfs::ArrayOfRDWaveforms) = _reduce_waveforms(Statistics.mean, wfs)
+Statistics.var(wfs::ArrayOfRDWaveforms; corrected::Bool = true) =
+    _reduce_waveforms(x -> Statistics.var(x; corrected = corrected), wfs)
+Statistics.std(wfs::ArrayOfRDWaveforms; corrected::Bool = true) =
+    _reduce_waveforms(x -> Statistics.std(x; corrected = corrected), wfs)
 
 
 # ToDo:
